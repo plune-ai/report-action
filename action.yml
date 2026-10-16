@@ -11,7 +11,7 @@ branding:
 # outputs are a public contract: changing one is a breaking change (bump the major tag).
 inputs:
   token:
-    description: 'Plune API token. Pass it from a secret: ${{ secrets.PLUNE_TOKEN }}. It reaches the CLI as PLUNE_TOKEN in the environment and is masked in the log.'
+    description: 'Plune API token. Pass it from a repository secret (secrets.PLUNE_TOKEN). It reaches the CLI as PLUNE_TOKEN in the environment and is masked in the log.'
     required: true
   report:
     description: 'What to import: a JUnit XML file, a Playwright JSON file, or an allure-results folder. Relative to working-directory. The format is detected.'
@@ -33,7 +33,7 @@ inputs:
     required: false
     default: ''
   key:
-    description: 'Run key shared by several jobs so their reports land in one run (--key). Include the attempt, e.g. "${{ github.run_id }}-${{ github.run_attempt }}", or a re-run of failed jobs joins the first attempt''s run. Empty: every import is its own run.'
+    description: 'Run key shared by several jobs so their reports land in one run (--key). Include the attempt (github.run_id and github.run_attempt joined with a dash), or a re-run of failed jobs joins the first attempt''s run. Empty: every import is its own run.'
     required: false
     default: ''
   shared-run:
