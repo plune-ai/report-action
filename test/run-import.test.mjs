@@ -1,0 +1,40 @@
+// GitHub Action · report-action · the whole script, with a fake CLI in place of npx. Run: node --test test/*.test.mjs
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { runImport, writeOutputs } from '../scripts/run-import.mjs';
+
+const dir = mkdtempSync(join(tmpdir(), 'report-action-'));
+const fake = join(dir, 'fake-cli.mjs');
+// Prints what the real one would, and the facts the test wants to check (arguments, env).
+writeFileSync(
+  fake,
+  `console.log(JSON.stringify({ argv: process.argv.slice(2), token: process.env.PLUNE_TOKEN, title: process.env.PLUNE_RUN_TITLE }));
+console.log('Read 2 result(s) from a junit report: 1 accepted, 0 already there, 0 unmatched, 1 not delivered.');
+console.log('http://x/v1/runs/r1');
+process.exit(Number(process.env.FAKE_EXIT ?? 0));
+`,
+);
+const env = { INPUT_TOKEN: 'tok-secret', INPUT_REPORT: 'r.xml', INPUT_CLI_VERSION: '0.24.0', INPUT_RUN_TITLE: 'a b', FAKE_EXIT: '1', PATH: process.env.PATH };
+
+test('GitHub Action · report-action · script · outputs and exit code come from the CLI; the token is masked first', async () => {
+  let log = '';
+  const { code, outputs } = await runImport(env, { command: process.execPath, leadingArgs: [fake], write: (s) => (log += s) });
+  assert.equal(code, 1);
+  assert.deepEqual(outputs, { runUrl: 'http://x/v1/runs/r1', uploaded: 1, failed: 1, filesUploaded: 0, missingAttachments: 0 });
+  assert.ok(log.startsWith('::add-mask::tok-secret\n'));
+  const seen = JSON.parse(log.split('\n')[1]);
+  assert.deepEqual(seen.argv, ['-y', '@plune-ai/cli@0.24.0', 'run', 'import', 'r.xml']);
+  assert.equal(seen.token, 'tok-secret');
+  assert.equal(seen.title, 'a b');
+  assert.ok(!seen.argv.join(' ').includes('tok-secret'));
+});
+
+test('GitHub Action · report-action · script · GITHUB_OUTPUT gets name=value lines', () => {
+  const file = join(dir, 'out');
+  writeFileSync(file, '');
+  writeOutputs({ runUrl: 'u', uploaded: 1, failed: 2, filesUploaded: 3, missingAttachments: 4 }, file);
+  assert.equal(readFileSync(file, 'utf8'), 'run-url=u\nuploaded=1\nfailed=2\nfiles-uploaded=3\nmissing-attachments=4\n');
+});

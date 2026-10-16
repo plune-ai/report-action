@@ -1,0 +1,1 @@
+{"name":"test_total_is_wrong","status":"failed","statusDetails":{"message":"assert 3 == 4"},"start":1,"stop":2,"uuid":"u2","historyId":"h2","testCaseId":"c2","fullName":"tests.test_cart#test_total_is_wrong","labels":[{"name":"suite","value":"test_cart"}],"titlePath":["tests","test_cart.py"]}

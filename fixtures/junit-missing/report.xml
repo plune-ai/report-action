@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="shop.Cart" tests="3" failures="1">
+    <testcase classname="shop.Cart" name="adds_item" time="0.1">
+      <system-out><![CDATA[
+[[ATTACHMENT|cart.png]]
+[[ATTACHMENT|gone.png]]
+]]></system-out>
+    </testcase>
+    <testcase classname="shop.Cart" name="removes_item" time="0.1"/>
+    <testcase classname="shop.Cart" name="total_is_wrong" time="0.1">
+      <failure message="expected 4 but was 3">expected 4 but was 3</failure>
+    </testcase>
+  </testsuite>
+</testsuites>

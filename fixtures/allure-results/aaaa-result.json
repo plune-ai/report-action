@@ -1,0 +1,1 @@
+{"name":"test_adds_item","status":"passed","attachments":[{"name":"state","source":"11111111-attachment.txt","type":"text/plain"}],"start":1,"stop":2,"uuid":"u1","historyId":"h1","testCaseId":"c1","fullName":"tests.test_cart#test_adds_item","labels":[{"name":"suite","value":"test_cart"}],"titlePath":["tests","test_cart.py"]}

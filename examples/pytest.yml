@@ -1,0 +1,32 @@
+# Copy to .github/workflows/plune-report.yml. Sends a pytest JUnit report to Plune.
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read # the least this workflow needs; the action itself calls the Plune API, not GitHub's
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pytest
+      # junit_logging=system-out keeps what a test prints in the report. A test that prints
+      #   [[ATTACHMENT|shots/cart.png]]
+      # on a line of its own (path relative to the report's folder) gets that file uploaded with its result.
+      - run: pytest --junitxml=reports/junit.xml -o junit_logging=system-out
+      - uses: plune-ai/report-action@v1
+        if: ${{ always() }} # failed tests are the point: they must reach Plune too
+        with:
+          token: ${{ secrets.PLUNE_TOKEN }}
+          report: reports/junit.xml
+          run-title: pytest on ${{ github.ref_name }}
+          env: ci
+          labels: pytest
