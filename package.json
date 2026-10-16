@@ -1,0 +1,8 @@
+{
+  "name": "report-action",
+  "private": true,
+  "type": "module",
+  "description": "plune-ai/report-action: the tests need node 20+ and nothing else.",
+  "scripts": { "test": "node --test test/parse-output.test.mjs test/run-import.test.mjs" },
+  "license": "MIT"
+}

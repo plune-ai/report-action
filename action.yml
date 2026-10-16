@@ -1,0 +1,108 @@
+name: 'Plune report'
+description: 'Send a JUnit XML, Playwright JSON or Allure test report to Plune in one step.'
+author: 'plune-ai'
+branding:
+  icon: 'upload-cloud'
+  color: 'purple'
+
+# Thin wrapper over the @plune-ai/cli binary (plune-ai/plune#1222, ADR 0001 of C6-ci-import): the
+# only thing this action does is `plune run import`. The logic that builds the call and reads the
+# CLI's output lives in scripts/run-import.mjs, where node can test it without GitHub. Inputs and
+# outputs are a public contract: changing one is a breaking change (bump the major tag).
+inputs:
+  token:
+    description: 'Plune API token. Pass it from a secret: ${{ secrets.PLUNE_TOKEN }}. It reaches the CLI as PLUNE_TOKEN in the environment and is masked in the log.'
+    required: true
+  report:
+    description: 'What to import: a JUnit XML file, a Playwright JSON file, or an allure-results folder. Relative to working-directory. The format is detected.'
+    required: true
+  run-title:
+    description: 'Title of the run in Plune (PLUNE_RUN_TITLE). Empty: the CLI names it.'
+    required: false
+    default: ''
+  env:
+    description: 'Environment the tests ran against, e.g. staging (PLUNE_ENV).'
+    required: false
+    default: ''
+  labels:
+    description: 'Labels for the run (PLUNE_LABELS): comma-separated, or one per line.'
+    required: false
+    default: ''
+  api-url:
+    description: 'Plune API address (PLUNE_API_URL). Empty: the CLI default.'
+    required: false
+    default: ''
+  key:
+    description: 'Run key shared by several jobs so their reports land in one run (--key). Include the attempt, e.g. "${{ github.run_id }}-${{ github.run_attempt }}", or a re-run of failed jobs joins the first attempt''s run. Empty: every import is its own run.'
+    required: false
+    default: ''
+  shared-run:
+    description: 'Leave the run open for the jobs still reporting (PLUNE_SHARED_RUN). Set it on every job but the one that ends the run. Use together with key.'
+    required: false
+    default: 'false'
+  create:
+    description: 'Offer tests that match no case to the review queue (--create).'
+    required: false
+    default: 'false'
+  fail-on-missing-attachments:
+    description: 'Fail the step when a file the report names is not there (--fail-on-missing-attachments). The results are sent either way.'
+    required: false
+    default: 'false'
+  fail-on-failures:
+    description: 'Fail the step on the platform''s verdict for the run: a failed or broken result that is not muted, or an expected case that never ran (--fail-on-failures). Off by default: a red test does not fail the import.'
+    required: false
+    default: 'false'
+  working-directory:
+    description: 'Directory the report path is relative to.'
+    required: false
+    default: '.'
+  cli-version:
+    # Pinned to a published @plune-ai/cli version; bump in a PR, not by following latest.
+    description: 'Exact version of @plune-ai/cli to run, from npm. Pinned for reproducibility.'
+    required: false
+    default: '0.24.0'
+
+outputs:
+  run-url:
+    description: 'Address of the run in Plune. Empty when no run was opened.'
+    value: ${{ steps.import.outputs.run-url }}
+  uploaded:
+    description: 'Results Plune accepted (the CLI''s "accepted").'
+    value: ${{ steps.import.outputs.uploaded }}
+  failed:
+    description: 'Results that did not reach Plune: not delivered, conflicted or refused.'
+    value: ${{ steps.import.outputs.failed }}
+  files-uploaded:
+    description: 'Files (screenshots, traces, logs) uploaded with the results.'
+    value: ${{ steps.import.outputs.files-uploaded }}
+  missing-attachments:
+    description: 'Files the report names that were not found, so were not uploaded.'
+    value: ${{ steps.import.outputs.missing-attachments }}
+
+runs:
+  using: 'composite'
+  steps:
+    - uses: actions/setup-node@v6
+      with:
+        node-version: '20'
+
+    # Every input goes in through env:, never spliced into the script text (no expression injection),
+    # and the token is only ever an environment variable: no command line, no echo.
+    - id: import
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        INPUT_TOKEN: ${{ inputs.token }}
+        INPUT_REPORT: ${{ inputs.report }}
+        INPUT_RUN_TITLE: ${{ inputs.run-title }}
+        INPUT_ENV: ${{ inputs.env }}
+        INPUT_LABELS: ${{ inputs.labels }}
+        INPUT_API_URL: ${{ inputs.api-url }}
+        INPUT_KEY: ${{ inputs.key }}
+        INPUT_SHARED_RUN: ${{ inputs.shared-run }}
+        INPUT_CREATE: ${{ inputs.create }}
+        INPUT_FAIL_ON_MISSING_ATTACHMENTS: ${{ inputs.fail-on-missing-attachments }}
+        INPUT_FAIL_ON_FAILURES: ${{ inputs.fail-on-failures }}
+        INPUT_CLI_VERSION: ${{ inputs.cli-version }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: node "$ACTION_PATH/scripts/run-import.mjs"

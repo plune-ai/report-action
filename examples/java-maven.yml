@@ -1,0 +1,35 @@
+# Copy to .github/workflows/plune-report.yml. Sends a Maven (JUnit 5 + Allure) run to Plune.
+#
+# Surefire writes one XML file per test class and `plune run import` takes one file, so for Maven
+# the report is the allure-results folder (allure-junit5 writes every test, its steps and its
+# attachments there). Add allure-junit5 and the aspectj agent to the pom as Allure's documentation
+# describes; Allure.addAttachment(...) in a test then travels to Plune with its result.
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - run: mvn -B test
+      - uses: plune-ai/report-action@v1
+        if: ${{ always() }}
+        with:
+          token: ${{ secrets.PLUNE_TOKEN }}
+          report: target/allure-results
+          run-title: maven on ${{ github.ref_name }}
+          env: ci
+          labels: java, junit5

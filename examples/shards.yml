@@ -1,0 +1,36 @@
+# Copy to .github/workflows/plune-report.yml. Several jobs, ONE run in Plune.
+# shared-run leaves the run open after each import; the job that should end it imports with the same key
+# and without shared-run (see the README, "Several jobs, one run").
+name: Tests
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npx playwright test --reporter=json --shard=${{ matrix.shard }}/3
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: shard.json
+      - uses: plune-ai/report-action@v1
+        if: ${{ always() }}
+        with:
+          token: ${{ secrets.PLUNE_TOKEN }}
+          report: shard.json
+          # The attempt is part of the key: "Re-run failed jobs" is attempt 2 and must not join attempt 1's run.
+          key: ${{ github.run_id }}-${{ github.run_attempt }}
+          shared-run: 'true' # leave the run open for the other shards

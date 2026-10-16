@@ -1,0 +1,33 @@
+# Copy to .github/workflows/plune-report.yml. Sends a Playwright run to Plune from its JSON report.
+# (Playwright can also report live with @plune-ai/playwright; this is the no-extra-package route.)
+name: E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npx playwright install --with-deps
+      - run: npx playwright test --reporter=json
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: playwright-report.json
+      - uses: plune-ai/report-action@v1
+        if: ${{ always() }}
+        with:
+          token: ${{ secrets.PLUNE_TOKEN }}
+          report: playwright-report.json
+          run-title: e2e on ${{ github.ref_name }}
+          env: ci
+          labels: playwright
