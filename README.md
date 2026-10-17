@@ -103,6 +103,33 @@ shared-run: 'true'   # leave the run open for the jobs still reporting
 `shared-run` goes on every job except the one that ends the run (see
 [`examples/shards.yml`](./examples/shards.yml)). Without `key`, each import is its own run.
 
+### Sharded runs that close themselves
+
+When you know how many shards there are, pass `shard: k/N` instead of `shared-run` and a final job.
+Each shard reports its results and then tells Plune it is done; the run closes once, when all N shards
+have said so, in whatever order and however often a shard is re-run. Needs `@plune-ai/cli` 0.25.0 or
+newer (the default `cli-version`).
+
+```yaml
+strategy:
+  fail-fast: false
+  matrix:
+    shard: [1, 2, 3, 4]
+steps:
+  - run: npx playwright test --reporter=json --shard=${{ matrix.shard }}/4
+  - uses: plune-ai/report-action@v1
+    if: ${{ always() }}
+    with:
+      token: ${{ secrets.PLUNE_TOKEN }}
+      report: shard.json
+      key: ${{ github.run_id }}-${{ github.run_attempt }}
+      shard: ${{ matrix.shard }}/4
+```
+
+`shard` must be `k/N` with `1 <= k <= N <= 1000`; anything else fails the step before the import runs.
+Every shard of a run must use the same N. A shard that never runs leaves the run open.
+See [`examples/shards-auto-close.yml`](./examples/shards-auto-close.yml).
+
 ## Inputs
 
 | Input | Default | Description |
@@ -115,11 +142,12 @@ shared-run: 'true'   # leave the run open for the jobs still reporting
 | `api-url` | | Plune API address (`PLUNE_API_URL`). Empty: the CLI default. |
 | `key` | | Run key shared by several jobs (`--key`). Include `github.run_attempt`. |
 | `shared-run` | `false` | Leave the run open for the jobs still reporting (`PLUNE_SHARED_RUN`). |
+| `shard` | | This job is shard `k/N`, for example `2/4` (`PLUNE_SHARD`). Plune closes the run when all N shards have reported. Use with `key`. |
 | `create` | `false` | Offer tests that match no case to the review queue (`--create`). |
 | `fail-on-missing-attachments` | `false` | Fail the step when a file the report names is not there. The results are sent either way. |
 | `fail-on-failures` | `false` | Fail the step on the platform's verdict (a failed or broken result that is not muted, or an expected case that never ran). Off: a red test does not fail the import. |
 | `working-directory` | `.` | Directory the `report` path is relative to. |
-| `cli-version` | `0.24.0` | Exact version of `@plune-ai/cli` to run. Pinned; floating tags such as `latest` are refused. |
+| `cli-version` | `0.25.0` | Exact version of `@plune-ai/cli` to run. Pinned; floating tags such as `latest` are refused. |
 
 ## Outputs
 

@@ -84,3 +84,17 @@ test('GitHub Action · report-action · log · a partial failure and missing fil
   assert.deepEqual(annotations(parseOutput(OK), 0), []);
   assert.match(summaryMarkdown(parseOutput(OK)), /\| 3 \| 0 \| 1 \| 0 \|/);
 });
+
+test('GitHub Action · report-action · shard · k/N goes to the CLI as PLUNE_SHARD', () => {
+  const ok = { ...base, INPUT_CLI_VERSION: '0.25.0' };
+  assert.equal(buildInvocation({ ...ok, INPUT_SHARD: ' 2/4 ' }).env.PLUNE_SHARD, '2/4');
+  assert.equal(buildInvocation({ ...ok, INPUT_SHARD: '1000/1000' }).env.PLUNE_SHARD, '1000/1000');
+  assert.equal('PLUNE_SHARD' in buildInvocation(ok).env, false);
+});
+
+test('GitHub Action · report-action · shard · anything but k/N with 1 <= k <= N is refused', () => {
+  for (const bad of ['0/4', '5/4', '2', 'a/b', '2/', '/4', '-1/4', '1/4/4', '1/1001', '2 / 4']) {
+    assert.throws(() => buildInvocation({ ...base, INPUT_CLI_VERSION: '0.25.0', INPUT_SHARD: bad }), /shard must be k\/N/, bad);
+  }
+  assert.throws(() => buildInvocation({ ...base, INPUT_SHARD: '2/4' }), /0\.25\.0 or newer/);
+});
