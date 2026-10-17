@@ -40,6 +40,10 @@ inputs:
     description: 'Leave the run open for the jobs still reporting (PLUNE_SHARED_RUN). Set it on every job but the one that ends the run. Use together with key.'
     required: false
     default: 'false'
+  shard:
+    description: 'This job is shard k of N, as k/N (for example 2/4; 1 <= k <= N <= 1000), passed as PLUNE_SHARD. Plune closes the run itself once all N shards have reported, so no final job and no shared-run. Use together with key. Needs @plune-ai/cli 0.25.0 or newer.'
+    required: false
+    default: ''
   create:
     description: 'Offer tests that match no case to the review queue (--create).'
     required: false
@@ -60,7 +64,7 @@ inputs:
     # Pinned to a published @plune-ai/cli version; bump in a PR, not by following latest.
     description: 'Exact version of @plune-ai/cli to run, from npm. Pinned for reproducibility.'
     required: false
-    default: '0.24.0'
+    default: '0.25.0'
 
 outputs:
   run-url:
@@ -100,6 +104,7 @@ runs:
         INPUT_API_URL: ${{ inputs.api-url }}
         INPUT_KEY: ${{ inputs.key }}
         INPUT_SHARED_RUN: ${{ inputs.shared-run }}
+        INPUT_SHARD: ${{ inputs.shard }}
         INPUT_CREATE: ${{ inputs.create }}
         INPUT_FAIL_ON_MISSING_ATTACHMENTS: ${{ inputs.fail-on-missing-attachments }}
         INPUT_FAIL_ON_FAILURES: ${{ inputs.fail-on-failures }}

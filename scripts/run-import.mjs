@@ -47,6 +47,20 @@ export function buildInvocation(env) {
     throw new Error('token is empty. Pass a Plune API token from a secret: token: ${{ secrets.PLUNE_TOKEN }} (secrets are not available to pull requests from forks).');
   }
 
+  // PLUNE_SHARD=k/N closes the run when N shards have reported. The CLI refuses a bad value too, but a CLI
+  // older than 0.25.0 ignores it silently, so it is checked here, before anything is sent.
+  const shard = input('SHARD');
+  if (shard !== '') {
+    const m = /^(\d+)\/(\d+)$/.exec(shard);
+    const k = m ? Number(m[1]) : 0;
+    const n = m ? Number(m[2]) : 0;
+    if (!m || k < 1 || k > n || n > 1000) {
+      throw new Error(`shard must be k/N with 1 <= k <= N <= 1000, for example 2/4, got "${shard}".`);
+    }
+    const [major, minor] = version.split(/[.-]/).map(Number);
+    if (major === 0 && minor < 25) throw new Error(`shard needs @plune-ai/cli 0.25.0 or newer, cli-version is ${version}.`);
+  }
+
   const args = ['-y', `@plune-ai/cli@${version}`, 'run', 'import', input('REPORT')];
   if (input('KEY') !== '') args.push('--key', input('KEY'));
   if (input('CREATE') === 'true') args.push('--create');
@@ -62,6 +76,7 @@ export function buildInvocation(env) {
     ...set('PLUNE_ENV', input('ENV')),
     // Commas or one label per line, whichever the workflow finds easier to write.
     ...set('PLUNE_LABELS', input('LABELS').split(/[\n,]/).map((s) => s.trim()).filter(Boolean).join(',')),
+    ...set('PLUNE_SHARD', input('SHARD')),
     ...(input('SHARED_RUN') === 'true' ? { PLUNE_SHARED_RUN: '1' } : {}),
   };
   return { args, env: cliEnv };
