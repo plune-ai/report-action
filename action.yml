@@ -64,11 +64,11 @@ inputs:
     # Pinned to a published @plune-ai/cli version; bump in a PR, not by following latest.
     description: 'Exact version of @plune-ai/cli to run, from npm. Pinned for reproducibility.'
     required: false
-    default: '0.25.0'
+    default: '0.30.2'
 
 outputs:
   run-url:
-    description: 'Address of the run in Plune. Empty when no run was opened.'
+    description: 'Address of the run in Plune. Empty when the CLI printed none: no run was opened, or the import timed out.'
     value: ${{ steps.import.outputs.run-url }}
   uploaded:
     description: 'Results Plune accepted (the CLI''s "accepted").'

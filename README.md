@@ -108,7 +108,7 @@ shared-run: 'true'   # leave the run open for the jobs still reporting
 When you know how many shards there are, pass `shard: k/N` instead of `shared-run` and a final job.
 Each shard reports its results and then tells Plune it is done; the run closes once, when all N shards
 have said so, in whatever order and however often a shard is re-run. Needs `@plune-ai/cli` 0.25.0 or
-newer (the default `cli-version`).
+newer, which the default `cli-version` is.
 
 ```yaml
 strategy:
@@ -147,13 +147,13 @@ See [`examples/shards-auto-close.yml`](./examples/shards-auto-close.yml).
 | `fail-on-missing-attachments` | `false` | Fail the step when a file the report names is not there. The results are sent either way. |
 | `fail-on-failures` | `false` | Fail the step on the platform's verdict (a failed or broken result that is not muted, or an expected case that never ran). Off: a red test does not fail the import. |
 | `working-directory` | `.` | Directory the `report` path is relative to. |
-| `cli-version` | `0.25.0` | Exact version of `@plune-ai/cli` to run. Pinned; floating tags such as `latest` are refused. |
+| `cli-version` | `0.30.2` | Exact version of `@plune-ai/cli` to run. Pinned; floating tags such as `latest` are refused. |
 
 ## Outputs
 
 | Output | Description |
 | --- | --- |
-| `run-url` | Address of the run in Plune. Empty when no run was opened. |
+| `run-url` | Address of the run in Plune. Empty when the CLI printed none: no run was opened, or the import timed out. |
 | `uploaded` | Results Plune accepted. |
 | `failed` | Results that did not reach Plune: not delivered, conflicted or refused. |
 | `files-uploaded` | Files (screenshots, traces, logs) uploaded with the results. |
@@ -184,11 +184,24 @@ and the path from the report), and `missing-attachments` counts them. Set
 
 - Runners: Linux, macOS and Windows. The step runs in `bash`: on Windows that must be Git Bash, which
   GitHub-hosted runners have. On a self-hosted Windows runner put Git Bash on `PATH` ahead of
-  `C:\Windows\System32\bash.exe` (WSL), or the step runs inside WSL. The smoke workflow runs the action
-  on Linux and, for a JUnit report, on Windows; macOS is not run.
+  `C:\Windows\System32\bash.exe` (WSL), or the step runs inside WSL. On Windows, use `cli-version`
+  0.28.0 or newer: 0.25.0 to 0.27.0 need `better-sqlite3`, which has no prebuilt binary for the action's
+  node 20, so npx compiles it, and on `windows-latest` that fails after about 90 s; from 0.28.0 it is
+  optional and `run import` does not load it. When npx fails before the CLI prints anything, set
+  `npm_config_foreground_scripts: 'true'` in the job's `env:` to see why. The smoke workflow runs the
+  action on Linux and, for a JUnit report, on Windows; macOS is not run.
+- Since CLI 0.27 the import gives up after 600 s and exits 1, after trying for up to 15 s to terminate
+  the run if it is not shared with other jobs. Set `PLUNE_IMPORT_TIMEOUT` (seconds, `0` = no limit) in
+  the job's `env:`.
 - `run-url`, `uploaded` and `failed` are read from the lines the CLI prints for people (`Read N result(s)
   ...`, the run address), because `plune run import` has no machine-readable output. A CLI release that
   rewords them shows up in this repository's tests and smoke workflow when `cli-version` is bumped.
+- What runs live: `self-test.yml` runs the action from this repository on a GitHub-hosted Ubuntu runner
+  against a Plune test project on beta, on every push to `main`, by hand, and on pull requests from
+  branches of this repository (not forks: they get no secrets). It proves the JUnit fixture arrives
+  whole (3 results, 1 file, nothing lost), that a second import with the same `key` lands in the same
+  run instead of opening another and counts nothing twice, and that a report naming a missing file still
+  sends its results, keeps the step green and leaves a warning on the job. The runs are deleted afterwards.
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) to work on the action.
 

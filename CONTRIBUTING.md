@@ -13,7 +13,10 @@ This is a thin composite GitHub Action over [`@plune-ai/cli`](https://github.com
 - `fixtures/`: a JUnit report, one with a missing attachment, and an `allure-results` folder.
 - `examples/`: copy-paste consumer workflows.
 - `.github/workflows/`: `ci.yml` (unit tests), `smoke.yml` (the action, from the working tree, against
-  the stub and the real pinned CLI, no secret), `release.yml` (tag, release and moving major tag).
+  the stub and the real pinned CLI, no secret), `self-test.yml` (the action on a real runner against a
+  Plune test project on beta, secret `PLUNE_TOKEN`, not on fork pull requests; the project must trust
+  the `junit` source under Settings → Trusted sources, so the fixture's tests become cases on the first
+  run), `release.yml` (tag, release and moving major tag).
 
 ## Tests
 
@@ -36,8 +39,10 @@ major tag (`v1` to `v2`) and say so in the release notes. Adding an optional inp
 
 Consumers use a moving major tag (`plune-ai/report-action@v1`). Pushing a full tag (`v1.2.0`) runs
 `release.yml`, which creates the release and moves `v1`. The action pins an exact `@plune-ai/cli`
-version in `cli-version`. Bump it in its own pull request: change the default in `action.yml`, the table
-in the README and the version in the tests, and let `smoke.yml` check the new CLI's output lines.
+version in `cli-version`. Bump it in its own pull request: change the default in `action.yml` and the
+table in the README, check the CLI's changelog for flags, variables, exit codes and the output lines
+`scripts/run-import.mjs` reads, and let `smoke.yml` check the new CLI's output lines. The fixtures in
+`test/parse-output.test.mjs` hold those lines as 0.24.0 printed them; change them only when a line changes.
 
 ## Commit messages
 

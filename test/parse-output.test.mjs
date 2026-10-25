@@ -92,10 +92,24 @@ test('GitHub Action · report-action · log · npx failing with only npm\'s warn
   assert.match(lines[0], /exited with code 1/);
   assert.match(lines[1], /^::error::.*@plune-ai\/cli did not install.*npm_config_foreground_scripts/);
   assert.equal(annotations(parseOutput(''), 1).length, 2);
+  // npm's notices and an older npm's upper-case WARN are npm talking too, not the CLI.
+  assert.equal(annotations(parseOutput('npm notice New major version of npm available! 10.8.2 -> 12.2.1\n'), 1).length, 2);
+  assert.equal(annotations(parseOutput('npm WARN deprecated prebuild-install@7.1.3\n'), 1).length, 2);
   // The CLI said why, or npm did: nothing to add.
   assert.equal(annotations(parseOutput('npm warn x\nplune: quota exceeded (runs: 50 of 50 used)\n'), 1).length, 1);
   assert.equal(annotations(parseOutput('npm error code E404\n'), 1).length, 1);
   assert.deepEqual(annotations(parseOutput('npm warn x\n'), 0), []);
+});
+
+test('GitHub Action · report-action · log · an import that timed out after opening a run is not summed up as "no run was opened"', () => {
+  // As @plune-ai/cli 0.30.2 prints it (src/cli/commands/run-import.ts, timeoutMessage) before exiting 1.
+  const timedOut = parseOutput(
+    'plune: run import did not finish in 600 s (--timeout / PLUNE_IMPORT_TIMEOUT; 0 turns the limit off); the platform may have received part of the results; run r-1 was terminated - import the report again.\n',
+  );
+  assert.equal(timedOut.runUrl, '');
+  const summary = summaryMarkdown(timedOut);
+  assert.match(summary, /^Run: not in the CLI output/m);
+  assert.doesNotMatch(summary, /no run was opened/);
 });
 
 test('GitHub Action · report-action · shard · k/N goes to the CLI as PLUNE_SHARD', () => {
