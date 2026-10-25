@@ -1,0 +1,106 @@
+name: Self-test
+
+# Runs THIS action, from the working tree, on a GitHub-hosted runner against the real Plune API on beta
+# (plune-ai/report-action#3). The fixture goes into a test project, the outputs are checked, the same
+# key is imported again, and the run is deleted. smoke.yml covers the same paths against a local stub,
+# forks included; this is what a stub cannot show.
+#
+# PLUNE_TOKEN is a project token (scope write) of the test project: every request with it lands in that
+# project, so no X-Plune-Project header is sent. Fork pull requests get no secrets, so the job is skipped
+# there instead of failing on an empty token.
+# NOT covered: Windows and macOS runners, Playwright JSON and Allure reports, a missing attachment, shards.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One at a time: every run writes into the same test project.
+concurrency:
+  group: self-test
+  cancel-in-progress: false
+
+jobs:
+  beta:
+    name: "GitHub Action · report-action · JUnit · live on beta: the fixture arrives, a re-run with the same key joins the same run"
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      API_URL: https://beta-api.plune.ai
+      RUN_KEY: self-test-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: first
+        uses: ./
+        with:
+          token: ${{ secrets.PLUNE_TOKEN }}
+          api-url: ${{ env.API_URL }}
+          report: fixtures/junit/report.xml
+          run-title: ${{ env.RUN_KEY }}
+          labels: self-test
+          key: ${{ env.RUN_KEY }}
+          create: 'true'
+
+      # The same key again, as a job re-run does when the key leaves out run_attempt. It must join the run
+      # the first import opened, not open a second one. That run is finished, so Plune refuses the results
+      # (409, closed to new results): they come back as not delivered, with a warning, and the step is green.
+      - id: rerun
+        uses: ./
+        with:
+          token: ${{ secrets.PLUNE_TOKEN }}
+          api-url: ${{ env.API_URL }}
+          report: fixtures/junit/report.xml
+          run-title: ${{ env.RUN_KEY }}
+          labels: self-test
+          key: ${{ env.RUN_KEY }}
+          create: 'true'
+
+      - name: "First import: 3 results and 1 file arrived, nothing lost. Re-run: same run, nothing counted twice"
+        env:
+          RUN_URL: ${{ steps.first.outputs.run-url }}
+          UPLOADED: ${{ steps.first.outputs.uploaded }}
+          FAILED: ${{ steps.first.outputs.failed }}
+          FILES_UPLOADED: ${{ steps.first.outputs.files-uploaded }}
+          MISSING: ${{ steps.first.outputs.missing-attachments }}
+          RERUN_URL: ${{ steps.rerun.outputs.run-url }}
+          RERUN_UPLOADED: ${{ steps.rerun.outputs.uploaded }}
+          RERUN_FAILED: ${{ steps.rerun.outputs.failed }}
+          RERUN_FILES_UPLOADED: ${{ steps.rerun.outputs.files-uploaded }}
+        run: |
+          bad=0
+          expect() { if [ "$2" != "$3" ]; then echo "::error::$1: expected '$3', got '$2'"; bad=1; fi; }
+          # fixtures/junit/report.xml: 3 test cases, one [[ATTACHMENT|cart.png]] that is there.
+          expect uploaded "$UPLOADED" 3
+          expect failed "$FAILED" 0
+          expect files-uploaded "$FILES_UPLOADED" 1
+          expect missing-attachments "$MISSING" 0
+          [[ "$RUN_URL" =~ /runs/[0-9a-f-]{36}$ ]] || { echo "::error::run-url: no run address, got '$RUN_URL'"; bad=1; }
+          expect "re-run run-url" "$RERUN_URL" "$RUN_URL"
+          expect "re-run uploaded" "$RERUN_UPLOADED" 0
+          expect "re-run failed" "$RERUN_FAILED" 3
+          expect "re-run files-uploaded" "$RERUN_FILES_UPLOADED" 0
+          exit "$bad"
+
+      - name: Delete the run from the test project
+        if: always()
+        env:
+          PLUNE_TOKEN: ${{ secrets.PLUNE_TOKEN }}
+          URLS: |
+            ${{ steps.first.outputs.run-url }}
+            ${{ steps.rerun.outputs.run-url }}
+        run: |
+          ids=$(grep -oE '/runs/[0-9a-f-]{36}$' <<< "$URLS" | cut -d/ -f3 | sort -u || true)
+          if [ -z "$ids" ]; then echo "No run was opened, nothing to delete."; exit 0; fi
+          bad=0
+          for id in $ids; do
+            # The header goes in on stdin, so the token is never on a command line.
+            code=$(printf 'Authorization: Bearer %s\n' "$PLUNE_TOKEN" | curl -sS -o /dev/null -w '%{http_code}' -X DELETE -H @- "$API_URL/v1/runs/$id" || true)
+            if [ "$code" = 204 ]; then echo "Deleted run $id."; else echo "::error::Run $id was not deleted (HTTP $code): delete it by hand in the test project."; bad=1; fi
+          done
+          exit "$bad"
