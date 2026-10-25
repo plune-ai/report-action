@@ -86,6 +86,10 @@ jobs:
           EXPECT: '{"uploaded":"3","failed":"0","files-uploaded":"1","missing-attachments":"0","results":3,"files":1}'
         run: node test/smoke-assert.mjs http://127.0.0.1:8791
 
+      - name: What the stub saw, when a step failed
+        if: ${{ failure() }}
+        run: cat "$RUNNER_TEMP/stub.log"
+
   allure:
     name: "GitHub Action · report-action · Allure · an allure-results folder arrives with its attachment"
     runs-on: ubuntu-latest

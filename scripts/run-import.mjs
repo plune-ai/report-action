@@ -35,6 +35,8 @@ export function parseOutput(text) {
 
   // The run's address is the last line that is a bare URL with /runs/ in it.
   out.runUrl = [...lines].reverse().find((l) => /^https?:\/\/\S+\/runs\/\S+$/.test(l)) ?? '';
+  // Nothing but npm's own warnings: npx does not show a failed install script's output, so the CLI never spoke.
+  out.cliSilent = !lines.some((l) => l !== '' && !/^npm (warn|notice)\b/i.test(l));
   return out;
 }
 
@@ -128,6 +130,11 @@ export function annotations(o, code) {
   if (o.failed > 0) lines.push(`::warning::${o.failed} of ${o.uploaded + o.failed} result(s) did not reach Plune (${o.uploaded} did). See the lines above for why.`);
   if (o.missingAttachments > 0) lines.push(`::warning::${o.missingAttachments} file(s) the report names were not found and were not uploaded.`);
   if (code !== 0) lines.push(`::error::plune run import exited with code ${code}.`);
+  if (code !== 0 && o.cliSilent) {
+    lines.push(
+      "::error::npx printed nothing from the CLI, so @plune-ai/cli did not install or did not start. npm does not show the output of a failed install script; set npm_config_foreground_scripts: 'true' in the job's env to see it.",
+    );
+  }
   return lines;
 }
 

@@ -25,7 +25,7 @@ test('GitHub Action · report-action · script · outputs and exit code come fro
   let log = '';
   const { code, outputs } = await runImport(env, { cli: { command: process.execPath, leadingArgs: [fake] }, write: (s) => (log += s) });
   assert.equal(code, 1);
-  assert.deepEqual(outputs, { runUrl: 'http://x/v1/runs/r1', uploaded: 1, failed: 1, filesUploaded: 0, missingAttachments: 0 });
+  assert.deepEqual(outputs, { runUrl: 'http://x/v1/runs/r1', uploaded: 1, failed: 1, filesUploaded: 0, missingAttachments: 0, cliSilent: false });
   assert.ok(log.startsWith('::add-mask::tok-secret\n'));
   const seen = JSON.parse(log.split('\n')[1]);
   assert.deepEqual(seen.argv, ['-y', '@plune-ai/cli@0.24.0', 'run', 'import', 'my reports/r.xml']);

@@ -20,11 +20,11 @@ plune: gate failed — 1 failed · 0 broken · 0 not run · 0 muted
 `;
 
 test('GitHub Action · report-action · parse · a clean import', () => {
-  assert.deepEqual(parseOutput(OK), { runUrl: 'https://beta.plune.ai/runs/abc-123', uploaded: 3, failed: 0, filesUploaded: 1, missingAttachments: 0 });
+  assert.deepEqual(parseOutput(OK), { runUrl: 'https://beta.plune.ai/runs/abc-123', uploaded: 3, failed: 0, filesUploaded: 1, missingAttachments: 0, cliSilent: false });
 });
 
 test('GitHub Action · report-action · parse · partial failure counts not delivered, conflicted and refused', () => {
-  assert.deepEqual(parseOutput(PARTIAL), { runUrl: 'http://127.0.0.1:8791/v1/runs/stub-run-1', uploaded: 2, failed: 6, filesUploaded: 4, missingAttachments: 2 });
+  assert.deepEqual(parseOutput(PARTIAL), { runUrl: 'http://127.0.0.1:8791/v1/runs/stub-run-1', uploaded: 2, failed: 6, filesUploaded: 4, missingAttachments: 2, cliSilent: false });
 });
 
 test('GitHub Action · report-action · parse · no run opened leaves the URL empty, not invented', () => {
@@ -83,6 +83,19 @@ test('GitHub Action · report-action · log · a partial failure and missing fil
   assert.match(lines[2], /exited with code 1/);
   assert.deepEqual(annotations(parseOutput(OK), 0), []);
   assert.match(summaryMarkdown(parseOutput(OK)), /\| 3 \| 0 \| 1 \| 0 \|/);
+});
+
+test('GitHub Action · report-action · log · npx failing with only npm\'s warnings says the CLI did not install and how to see why', () => {
+  // What npx 10.8.2 prints when an install script of the CLI's dependencies fails: its warnings, then exit 1.
+  const lines = annotations(parseOutput('npm warn deprecated prebuild-install@7.1.3: No longer maintained.\n'), 1);
+  assert.equal(lines.length, 2);
+  assert.match(lines[0], /exited with code 1/);
+  assert.match(lines[1], /^::error::.*@plune-ai\/cli did not install.*npm_config_foreground_scripts/);
+  assert.equal(annotations(parseOutput(''), 1).length, 2);
+  // The CLI said why, or npm did: nothing to add.
+  assert.equal(annotations(parseOutput('npm warn x\nplune: quota exceeded (runs: 50 of 50 used)\n'), 1).length, 1);
+  assert.equal(annotations(parseOutput('npm error code E404\n'), 1).length, 1);
+  assert.deepEqual(annotations(parseOutput('npm warn x\n'), 0), []);
 });
 
 test('GitHub Action · report-action · shard · k/N goes to the CLI as PLUNE_SHARD', () => {
