@@ -153,7 +153,7 @@ See [`examples/shards-auto-close.yml`](./examples/shards-auto-close.yml).
 
 | Output | Description |
 | --- | --- |
-| `run-url` | Address of the run in Plune. Empty when no run was opened. |
+| `run-url` | Address of the run in Plune. Empty when the CLI printed none: no run was opened, or the import timed out. |
 | `uploaded` | Results Plune accepted. |
 | `failed` | Results that did not reach Plune: not delivered, conflicted or refused. |
 | `files-uploaded` | Files (screenshots, traces, logs) uploaded with the results. |
@@ -182,6 +182,9 @@ and the path from the report), and `missing-attachments` counts them. Set
 ## Limits
 
 - Linux and macOS runners. Windows runners are not tested.
+- Since CLI 0.27 the import gives up after 600 s and exits 1, after trying for up to 15 s to terminate
+  the run if it is not shared with other jobs. Set `PLUNE_IMPORT_TIMEOUT` (seconds, `0` = no limit) in
+  the job's `env:`.
 - `run-url`, `uploaded` and `failed` are read from the lines the CLI prints for people (`Read N result(s)
   ...`, the run address), because `plune run import` has no machine-readable output. A CLI release that
   rewords them shows up in this repository's tests and smoke workflow when `cli-version` is bumped.
