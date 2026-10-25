@@ -108,7 +108,7 @@ shared-run: 'true'   # leave the run open for the jobs still reporting
 When you know how many shards there are, pass `shard: k/N` instead of `shared-run` and a final job.
 Each shard reports its results and then tells Plune it is done; the run closes once, when all N shards
 have said so, in whatever order and however often a shard is re-run. Needs `@plune-ai/cli` 0.25.0 or
-newer (the default `cli-version`).
+newer, which the default `cli-version` is.
 
 ```yaml
 strategy:
@@ -147,7 +147,7 @@ See [`examples/shards-auto-close.yml`](./examples/shards-auto-close.yml).
 | `fail-on-missing-attachments` | `false` | Fail the step when a file the report names is not there. The results are sent either way. |
 | `fail-on-failures` | `false` | Fail the step on the platform's verdict (a failed or broken result that is not muted, or an expected case that never ran). Off: a red test does not fail the import. |
 | `working-directory` | `.` | Directory the `report` path is relative to. |
-| `cli-version` | `0.25.0` | Exact version of `@plune-ai/cli` to run. Pinned; floating tags such as `latest` are refused. |
+| `cli-version` | `0.30.2` | Exact version of `@plune-ai/cli` to run. Pinned; floating tags such as `latest` are refused. |
 
 ## Outputs
 
