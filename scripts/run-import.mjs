@@ -6,7 +6,7 @@
 // is where it shows (the smoke workflow runs the real, pinned CLI against it too).
 
 import { spawn } from 'node:child_process';
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, existsSync } from 'node:fs';
 import { win32 } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -84,28 +84,32 @@ export function buildInvocation(env) {
 }
 
 /**
- * How to start npx without a shell. On Windows npx is npx.cmd, and node (20.12.2 and newer, CVE-2024-27980)
- * starts a .cmd only through cmd.exe, which would re-parse the report path and the key (spaces, %, ^).
- * So on Windows node runs npm's own npx-cli.js, the file npx.cmd itself hands to node.exe.
+ * How the action starts npx: an argument list, with no shell of its own. On Windows npx is npx.cmd, which node
+ * (20.12.2 and newer, CVE-2024-27980) starts only through cmd.exe, and the action would have to quote the
+ * report path and the key for it. So on Windows node runs npx-cli.js of the npm bundled with this node.
+ * npx.cmd would prefer a globally updated npm (npm i -g npm) when there is one; this always takes the bundled one.
+ * npx itself then starts the CLI's bin through sh -c or cmd.exe /d /s /c and quotes the arguments itself.
  */
-export function npxCommand(platform = process.platform, execPath = process.execPath) {
+export function npxCommand(platform = process.platform, execPath = process.execPath, exists = existsSync) {
   if (platform !== 'win32') return { command: 'npx', leadingArgs: [] };
-  return { command: execPath, leadingArgs: [win32.join(win32.dirname(execPath), 'node_modules', 'npm', 'bin', 'npx-cli.js')] };
+  const npxCli = win32.join(win32.dirname(execPath), 'node_modules', 'npm', 'bin', 'npx-cli.js');
+  if (!exists(npxCli)) throw new Error(`npm's npx-cli.js not found next to ${execPath} (looked for ${npxCli}).`);
+  return { command: execPath, leadingArgs: [npxCli] };
 }
 
 /**
  * Run the import, pass the output through, and return `{ code, outputs }`.
- * `command` and `leadingArgs` (default: npxCommand()) are replaceable so tests can put a fake CLI in the way.
+ * `cli` (`{ command, leadingArgs }`, default npxCommand()) and `spawnImpl` are replaceable so tests can put
+ * a fake CLI in the way.
  */
-export function runImport(env, { command, leadingArgs = [], write = (s) => process.stdout.write(s) } = {}) {
-  if (!command) ({ command, leadingArgs } = npxCommand());
+export function runImport(env, { cli = npxCommand(), write = (s) => process.stdout.write(s), spawnImpl = spawn } = {}) {
   const inv = buildInvocation(env);
   // The token is masked before anything is printed. Secrets are masked by the runner already; this
   // covers a token that was typed into a workflow by hand.
   write(`::add-mask::${inv.env.PLUNE_TOKEN}\n`);
   return new Promise((resolve, reject) => {
-    // An argument list, no shell: the report path and the key are never parsed as shell syntax.
-    const child = spawn(command, [...leadingArgs, ...inv.args], { env: inv.env, stdio: ['ignore', 'pipe', 'pipe'] });
+    // An argument list and no shell of the action's own; see npxCommand for the shell npx uses.
+    const child = spawnImpl(cli.command, [...cli.leadingArgs, ...inv.args], { env: inv.env, stdio: ['ignore', 'pipe', 'pipe'] });
     let text = '';
     const take = (chunk) => {
       text += chunk;

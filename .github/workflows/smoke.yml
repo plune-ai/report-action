@@ -49,6 +49,43 @@ jobs:
           EXPECT: '{"uploaded":"3","failed":"0","files-uploaded":"1","missing-attachments":"0","results":3,"files":1}'
         run: node test/smoke-assert.mjs http://127.0.0.1:8791
 
+  # npx is npx.cmd on Windows (plune-ai/report-action#4): the same JUnit case on a Windows runner.
+  junit-windows:
+    name: "GitHub Action · report-action · JUnit · on a Windows runner, results and a file arrive, outputs are set"
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash   # the steps below are bash (&, $(seq)); the Windows default would be pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start the local Plune API stub
+        run: |
+          node test/stub-plune.mjs 8791 > "$RUNNER_TEMP/stub.log" 2>&1 < /dev/null &
+          for _ in $(seq 20); do curl -fs http://127.0.0.1:8791/__state > /dev/null && exit 0; sleep 0.5; done
+          cat "$RUNNER_TEMP/stub.log"; exit 1
+
+      - id: report
+        uses: ./
+        with:
+          token: smoke-token-not-a-secret
+          api-url: http://127.0.0.1:8791
+          report: fixtures/junit/report.xml
+          run-title: smoke junit windows
+          env: smoke
+          labels: smoke, junit, windows
+
+      - name: The outputs and the stub agree
+        env:
+          TOKEN: smoke-token-not-a-secret
+          RUN_URL: ${{ steps.report.outputs.run-url }}
+          UPLOADED: ${{ steps.report.outputs.uploaded }}
+          FAILED: ${{ steps.report.outputs.failed }}
+          FILES_UPLOADED: ${{ steps.report.outputs.files-uploaded }}
+          MISSING: ${{ steps.report.outputs.missing-attachments }}
+          EXPECT: '{"uploaded":"3","failed":"0","files-uploaded":"1","missing-attachments":"0","results":3,"files":1}'
+        run: node test/smoke-assert.mjs http://127.0.0.1:8791
+
   allure:
     name: "GitHub Action · report-action · Allure · an allure-results folder arrives with its attachment"
     runs-on: ubuntu-latest

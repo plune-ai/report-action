@@ -173,16 +173,19 @@ and the path from the report), and `missing-attachments` counts them. Set
 
 - The token is read from `inputs.token` into the environment of one step. It is never put on a
   command line, never echoed, and is masked with `::add-mask::`.
-- No input is spliced into a shell script: every value goes through `env:`, and the CLI is started with
-  an argument list, not through a shell.
+- No input is spliced into a shell script: every value goes through `env:`. The action starts `npx` with
+  an argument list and no shell of its own; npx then starts the CLI's binary through `sh` or `cmd.exe` and
+  quotes the arguments itself.
 - The action needs no GitHub token and no write permission: `permissions: contents: read` is enough
   (and `contents: read` is only needed for `actions/checkout`).
 - `cli-version` must be an exact version; pin the action itself to a tag (`@v1`) or a commit.
 
 ## Limits
 
-- Runners: Linux, macOS and Windows. The step runs in `bash`, which GitHub-hosted Windows runners have
-  (Git Bash); a self-hosted Windows runner needs it on `PATH`. The smoke workflow runs on Linux only.
+- Runners: Linux, macOS and Windows. The step runs in `bash`: on Windows that must be Git Bash, which
+  GitHub-hosted runners have. On a self-hosted Windows runner put Git Bash on `PATH` ahead of
+  `C:\Windows\System32\bash.exe` (WSL), or the step runs inside WSL. The smoke workflow runs the action
+  on Linux and, for a JUnit report, on Windows; macOS is not run.
 - `run-url`, `uploaded` and `failed` are read from the lines the CLI prints for people (`Read N result(s)
   ...`, the run address), because `plune run import` has no machine-readable output. A CLI release that
   rewords them shows up in this repository's tests and smoke workflow when `cli-version` is bumped.
