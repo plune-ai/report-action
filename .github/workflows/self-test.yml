@@ -8,6 +8,11 @@ name: Self-test
 # PLUNE_TOKEN is a project token (scope write) of the test project: every request with it lands in that
 # project, so no X-Plune-Project header is sent. Fork pull requests get no secrets, so the jobs are skipped
 # there instead of failing on an empty token.
+#
+# The test project must trust the junit source (Settings → Trusted sources). With create: 'true' the first
+# run then turns the fixture's three tests into cases and records their results, and later runs match those
+# cases: Plune answers `known` for a test that already has a case, so none is made twice. Untrusted, the
+# tests only wait in the review queue, nothing is counted, and the uploaded checks below fail.
 # NOT covered: Windows and macOS runners, Playwright JSON and Allure reports, shards.
 
 on:
@@ -95,6 +100,7 @@ jobs:
           expect() { if [ "$2" != "$3" ]; then echo "::error::$1: expected '$3', got '$2'"; bad=1; fi; }
           # fixtures/junit/report.xml: 3 test cases, one [[ATTACHMENT|cart.png]] that is there.
           expect uploaded "$UPLOADED" 3
+          [ "$UPLOADED" = 3 ] || echo "::notice::If the import says «offered to the review queue», the test project has no cases for the fixture and does not trust junit: add it under Settings → Trusted sources."
           expect failed "$FAILED" 0
           expect files-uploaded "$FILES_UPLOADED" 1
           expect missing-attachments "$MISSING" 0
