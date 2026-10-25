@@ -7,6 +7,7 @@
 
 import { spawn } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
+import { win32 } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const SEMVER = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
@@ -83,10 +84,21 @@ export function buildInvocation(env) {
 }
 
 /**
- * Run the import, pass the output through, and return `{ code, outputs }`.
- * `command` and `leadingArgs` are replaceable so tests can put a fake CLI in the way.
+ * How to start npx without a shell. On Windows npx is npx.cmd, and node (20.12.2 and newer, CVE-2024-27980)
+ * starts a .cmd only through cmd.exe, which would re-parse the report path and the key (spaces, %, ^).
+ * So on Windows node runs npm's own npx-cli.js, the file npx.cmd itself hands to node.exe.
  */
-export function runImport(env, { command = 'npx', leadingArgs = [], write = (s) => process.stdout.write(s) } = {}) {
+export function npxCommand(platform = process.platform, execPath = process.execPath) {
+  if (platform !== 'win32') return { command: 'npx', leadingArgs: [] };
+  return { command: execPath, leadingArgs: [win32.join(win32.dirname(execPath), 'node_modules', 'npm', 'bin', 'npx-cli.js')] };
+}
+
+/**
+ * Run the import, pass the output through, and return `{ code, outputs }`.
+ * `command` and `leadingArgs` (default: npxCommand()) are replaceable so tests can put a fake CLI in the way.
+ */
+export function runImport(env, { command, leadingArgs = [], write = (s) => process.stdout.write(s) } = {}) {
+  if (!command) ({ command, leadingArgs } = npxCommand());
   const inv = buildInvocation(env);
   // The token is masked before anything is printed. Secrets are masked by the runner already; this
   // covers a token that was typed into a workflow by hand.

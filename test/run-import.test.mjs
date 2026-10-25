@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runImport, writeOutputs } from '../scripts/run-import.mjs';
+import { runImport, writeOutputs, npxCommand } from '../scripts/run-import.mjs';
 
 const dir = mkdtempSync(join(tmpdir(), 'report-action-'));
 const fake = join(dir, 'fake-cli.mjs');
@@ -17,7 +17,7 @@ console.log('http://x/v1/runs/r1');
 process.exit(Number(process.env.FAKE_EXIT ?? 0));
 `,
 );
-const env = { INPUT_TOKEN: 'tok-secret', INPUT_REPORT: 'r.xml', INPUT_CLI_VERSION: '0.24.0', INPUT_RUN_TITLE: 'a b', FAKE_EXIT: '1', PATH: process.env.PATH };
+const env = { INPUT_TOKEN: 'tok-secret', INPUT_REPORT: 'my reports/r.xml', INPUT_CLI_VERSION: '0.24.0', INPUT_RUN_TITLE: 'a b', FAKE_EXIT: '1', PATH: process.env.PATH };
 
 test('GitHub Action · report-action · script · outputs and exit code come from the CLI; the token is masked first', async () => {
   let log = '';
@@ -26,10 +26,19 @@ test('GitHub Action · report-action · script · outputs and exit code come fro
   assert.deepEqual(outputs, { runUrl: 'http://x/v1/runs/r1', uploaded: 1, failed: 1, filesUploaded: 0, missingAttachments: 0 });
   assert.ok(log.startsWith('::add-mask::tok-secret\n'));
   const seen = JSON.parse(log.split('\n')[1]);
-  assert.deepEqual(seen.argv, ['-y', '@plune-ai/cli@0.24.0', 'run', 'import', 'r.xml']);
+  assert.deepEqual(seen.argv, ['-y', '@plune-ai/cli@0.24.0', 'run', 'import', 'my reports/r.xml']);
   assert.equal(seen.token, 'tok-secret');
   assert.equal(seen.title, 'a b');
   assert.ok(!seen.argv.join(' ').includes('tok-secret'));
+});
+
+test('GitHub Action · report-action · call · Windows runs npm\'s npx-cli.js with node, not npx.cmd and no shell; Linux and macOS run npx', () => {
+  assert.deepEqual(npxCommand('linux', '/opt/hostedtoolcache/node/20.19.5/x64/bin/node'), { command: 'npx', leadingArgs: [] });
+  assert.deepEqual(npxCommand('darwin', '/usr/local/bin/node'), { command: 'npx', leadingArgs: [] });
+  assert.deepEqual(npxCommand('win32', 'C:\\Program Files\\nodejs\\node.exe'), {
+    command: 'C:\\Program Files\\nodejs\\node.exe',
+    leadingArgs: ['C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npx-cli.js'],
+  });
 });
 
 test('GitHub Action · report-action · script · GITHUB_OUTPUT gets name=value lines', () => {

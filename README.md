@@ -181,7 +181,8 @@ and the path from the report), and `missing-attachments` counts them. Set
 
 ## Limits
 
-- Linux and macOS runners. Windows runners are not tested.
+- Runners: Linux, macOS and Windows. The step runs in `bash`, which GitHub-hosted Windows runners have
+  (Git Bash); a self-hosted Windows runner needs it on `PATH`. The smoke workflow runs on Linux only.
 - `run-url`, `uploaded` and `failed` are read from the lines the CLI prints for people (`Read N result(s)
   ...`, the run address), because `plune run import` has no machine-readable output. A CLI release that
   rewords them shows up in this repository's tests and smoke workflow when `cli-version` is bumped.
