@@ -189,7 +189,8 @@ and the path from the report), and `missing-attachments` counts them. Set
   against a Plune test project on beta, on every push to `main`, by hand, and on pull requests from
   branches of this repository (not forks: they get no secrets). It proves the JUnit fixture arrives
   whole (3 results, 1 file, nothing lost), that a second import with the same `key` lands in the same
-  run instead of opening another, and it deletes the run afterwards.
+  run instead of opening another and counts nothing twice, and that a report naming a missing file still
+  sends its results, keeps the step green and leaves a warning on the job. The runs are deleted afterwards.
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) to work on the action.
 

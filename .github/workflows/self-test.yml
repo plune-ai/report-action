@@ -2,13 +2,13 @@ name: Self-test
 
 # Runs THIS action, from the working tree, on a GitHub-hosted runner against the real Plune API on beta
 # (plune-ai/report-action#3). The fixture goes into a test project, the outputs are checked, the same
-# key is imported again, and the run is deleted. smoke.yml covers the same paths against a local stub,
-# forks included; this is what a stub cannot show.
+# key is imported again, a report naming a missing file is imported, and the runs are deleted. smoke.yml
+# covers the same paths against a local stub, forks included; this is what a stub cannot show.
 #
 # PLUNE_TOKEN is a project token (scope write) of the test project: every request with it lands in that
-# project, so no X-Plune-Project header is sent. Fork pull requests get no secrets, so the job is skipped
+# project, so no X-Plune-Project header is sent. Fork pull requests get no secrets, so the jobs are skipped
 # there instead of failing on an empty token.
-# NOT covered: Windows and macOS runners, Playwright JSON and Allure reports, a missing attachment, shards.
+# NOT covered: Windows and macOS runners, Playwright JSON and Allure reports, shards.
 
 on:
   push:
@@ -26,10 +26,12 @@ concurrency:
 
 jobs:
   beta:
-    name: "GitHub Action · report-action · JUnit · live on beta: the fixture arrives, a re-run with the same key joins the same run"
+    name: "GitHub Action · report-action · JUnit · live on beta: the fixture arrives, a re-run with the same key joins the same run, a missing file does not fail the step"
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      check-run-id: ${{ job.check_run_id }}
     env:
       API_URL: https://beta-api.plune.ai
       RUN_KEY: self-test-${{ github.run_id }}-${{ github.run_attempt }}
@@ -61,7 +63,21 @@ jobs:
           key: ${{ env.RUN_KEY }}
           create: 'true'
 
-      - name: "First import: 3 results and 1 file arrived, nothing lost. Re-run: same run, nothing counted twice"
+      # fixtures/junit-missing/report.xml names cart.png, which is there, and gone.png, which is not.
+      # fail-on-missing-attachments stays at its default (false), so this step must stay green: a red one
+      # stops the job here. Its warning is checked by the job below, once this one has finished.
+      - id: missing
+        uses: ./
+        with:
+          token: ${{ secrets.PLUNE_TOKEN }}
+          api-url: ${{ env.API_URL }}
+          report: fixtures/junit-missing/report.xml
+          run-title: ${{ env.RUN_KEY }}-missing
+          labels: self-test
+          key: ${{ env.RUN_KEY }}-missing
+          create: 'true'
+
+      - name: "First import: 3 results and 1 file arrived, nothing lost. Re-run: same run, nothing counted twice. Missing file: counted, results sent"
         env:
           RUN_URL: ${{ steps.first.outputs.run-url }}
           UPLOADED: ${{ steps.first.outputs.uploaded }}
@@ -72,6 +88,8 @@ jobs:
           RERUN_UPLOADED: ${{ steps.rerun.outputs.uploaded }}
           RERUN_FAILED: ${{ steps.rerun.outputs.failed }}
           RERUN_FILES_UPLOADED: ${{ steps.rerun.outputs.files-uploaded }}
+          M_UPLOADED: ${{ steps.missing.outputs.uploaded }}
+          M_MISSING: ${{ steps.missing.outputs.missing-attachments }}
         run: |
           bad=0
           expect() { if [ "$2" != "$3" ]; then echo "::error::$1: expected '$3', got '$2'"; bad=1; fi; }
@@ -83,17 +101,21 @@ jobs:
           [[ "$RUN_URL" =~ /runs/[0-9a-f-]{36}$ ]] || { echo "::error::run-url: no run address, got '$RUN_URL'"; bad=1; }
           expect "re-run run-url" "$RERUN_URL" "$RUN_URL"
           expect "re-run uploaded" "$RERUN_UPLOADED" 0
-          expect "re-run failed" "$RERUN_FAILED" 3
-          expect "re-run files-uploaded" "$RERUN_FILES_UPLOADED" 0
+          # Shown, not checked: the run is closed, so Plune answers 409 to the re-run's results and the CLI
+          # counts them as not delivered. That is the platform's answer of today, not the action's contract.
+          echo "re-run: failed=$RERUN_FAILED files-uploaded=$RERUN_FILES_UPLOADED (shown, not checked)"
+          expect "missing-file uploaded" "$M_UPLOADED" 3
+          [ "$M_MISSING" -gt 0 ] 2>/dev/null || { echo "::error::missing-attachments: expected more than 0, got '$M_MISSING'"; bad=1; }
           exit "$bad"
 
-      - name: Delete the run from the test project
+      - name: Delete the runs from the test project
         if: always()
         env:
           PLUNE_TOKEN: ${{ secrets.PLUNE_TOKEN }}
           URLS: |
             ${{ steps.first.outputs.run-url }}
             ${{ steps.rerun.outputs.run-url }}
+            ${{ steps.missing.outputs.run-url }}
         run: |
           ids=$(grep -oE '/runs/[0-9a-f-]{36}$' <<< "$URLS" | cut -d/ -f3 | sort -u || true)
           if [ -z "$ids" ]; then echo "No run was opened, nothing to delete."; exit 0; fi
@@ -104,3 +126,22 @@ jobs:
             if [ "$code" = 204 ]; then echo "Deleted run $id."; else echo "::error::Run $id was not deleted (HTTP $code): delete it by hand in the test project."; bad=1; fi
           done
           exit "$bad"
+
+  # The action shows a missing file as a ::warning:: line, which becomes an annotation of the job. A step
+  # cannot read its own job's log, so this job reads the annotations of the finished one.
+  warning:
+    name: "GitHub Action · report-action · JUnit · live on beta: the missing file shows as a warning on the job"
+    needs: beta
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      checks: read
+    steps:
+      - name: The beta job carries the warning about the missing file
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHECK_RUN_ID: ${{ needs.beta.outputs.check-run-id }}
+        run: |
+          warnings=$(gh api --paginate "repos/$GITHUB_REPOSITORY/check-runs/$CHECK_RUN_ID/annotations" --jq '.[] | select(.annotation_level == "warning") | .message')
+          printf '%s\n' "$warnings"
+          grep -q 'file(s) the report names were not found and were not uploaded' <<< "$warnings" || { echo "::error::No warning about the missing file among the annotations of check run $CHECK_RUN_ID."; exit 1; }
