@@ -188,6 +188,12 @@ and the path from the report), and `missing-attachments` counts them. Set
 - `run-url`, `uploaded` and `failed` are read from the lines the CLI prints for people (`Read N result(s)
   ...`, the run address), because `plune run import` has no machine-readable output. A CLI release that
   rewords them shows up in this repository's tests and smoke workflow when `cli-version` is bumped.
+- What runs live: `self-test.yml` runs the action from this repository on a GitHub-hosted Ubuntu runner
+  against a Plune test project on beta, on every push to `main`, by hand, and on pull requests from
+  branches of this repository (not forks: they get no secrets). It proves the JUnit fixture arrives
+  whole (3 results, 1 file, nothing lost), that a second import with the same `key` lands in the same
+  run instead of opening another and counts nothing twice, and that a report naming a missing file still
+  sends its results, keeps the step green and leaves a warning on the job. The runs are deleted afterwards.
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) to work on the action.
 

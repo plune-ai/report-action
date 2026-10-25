@@ -13,7 +13,10 @@ This is a thin composite GitHub Action over [`@plune-ai/cli`](https://github.com
 - `fixtures/`: a JUnit report, one with a missing attachment, and an `allure-results` folder.
 - `examples/`: copy-paste consumer workflows.
 - `.github/workflows/`: `ci.yml` (unit tests), `smoke.yml` (the action, from the working tree, against
-  the stub and the real pinned CLI, no secret), `release.yml` (tag, release and moving major tag).
+  the stub and the real pinned CLI, no secret), `self-test.yml` (the action on a real runner against a
+  Plune test project on beta, secret `PLUNE_TOKEN`, not on fork pull requests; the project must trust
+  the `junit` source under Settings → Trusted sources, so the fixture's tests become cases on the first
+  run), `release.yml` (tag, release and moving major tag).
 
 ## Tests
 
