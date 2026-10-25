@@ -173,15 +173,23 @@ and the path from the report), and `missing-attachments` counts them. Set
 
 - The token is read from `inputs.token` into the environment of one step. It is never put on a
   command line, never echoed, and is masked with `::add-mask::`.
-- No input is spliced into a shell script: every value goes through `env:`, and the CLI is started with
-  an argument list, not through a shell.
+- No input is spliced into a shell script: every value goes through `env:`. The action starts `npx` with
+  an argument list and no shell of its own; npx then starts the CLI's binary through `sh` or `cmd.exe` and
+  quotes the arguments itself.
 - The action needs no GitHub token and no write permission: `permissions: contents: read` is enough
   (and `contents: read` is only needed for `actions/checkout`).
 - `cli-version` must be an exact version; pin the action itself to a tag (`@v1`) or a commit.
 
 ## Limits
 
-- Linux and macOS runners. Windows runners are not tested.
+- Runners: Linux, macOS and Windows. The step runs in `bash`: on Windows that must be Git Bash, which
+  GitHub-hosted runners have. On a self-hosted Windows runner put Git Bash on `PATH` ahead of
+  `C:\Windows\System32\bash.exe` (WSL), or the step runs inside WSL. On Windows, use `cli-version`
+  0.28.0 or newer: 0.25.0 to 0.27.0 need `better-sqlite3`, which has no prebuilt binary for the action's
+  node 20, so npx compiles it, and on `windows-latest` that fails after about 90 s; from 0.28.0 it is
+  optional and `run import` does not load it. When npx fails before the CLI prints anything, set
+  `npm_config_foreground_scripts: 'true'` in the job's `env:` to see why. The smoke workflow runs the
+  action on Linux and, for a JUnit report, on Windows; macOS is not run.
 - Since CLI 0.27 the import gives up after 600 s and exits 1, after trying for up to 15 s to terminate
   the run if it is not shared with other jobs. Set `PLUNE_IMPORT_TIMEOUT` (seconds, `0` = no limit) in
   the job's `env:`.
