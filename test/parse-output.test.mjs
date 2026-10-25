@@ -85,6 +85,17 @@ test('GitHub Action · report-action · log · a partial failure and missing fil
   assert.match(summaryMarkdown(parseOutput(OK)), /\| 3 \| 0 \| 1 \| 0 \|/);
 });
 
+test('GitHub Action · report-action · log · an import that timed out after opening a run is not summed up as "no run was opened"', () => {
+  // As @plune-ai/cli 0.30.2 prints it (src/cli/commands/run-import.ts, timeoutMessage) before exiting 1.
+  const timedOut = parseOutput(
+    'plune: run import did not finish in 600 s (--timeout / PLUNE_IMPORT_TIMEOUT; 0 turns the limit off); the platform may have received part of the results; run r-1 was terminated - import the report again.\n',
+  );
+  assert.equal(timedOut.runUrl, '');
+  const summary = summaryMarkdown(timedOut);
+  assert.match(summary, /^Run: not in the CLI output/m);
+  assert.doesNotMatch(summary, /no run was opened/);
+});
+
 test('GitHub Action · report-action · shard · k/N goes to the CLI as PLUNE_SHARD', () => {
   const ok = { ...base, INPUT_CLI_VERSION: '0.25.0' };
   assert.equal(buildInvocation({ ...ok, INPUT_SHARD: ' 2/4 ' }).env.PLUNE_SHARD, '2/4');

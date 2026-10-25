@@ -124,7 +124,8 @@ export function summaryMarkdown(o) {
   return [
     '### Plune report import',
     '',
-    o.runUrl ? `Run: ${o.runUrl}` : 'Run: none (no run was opened)',
+    // No URL also when a run was opened and the import then timed out (CLI 0.27+), so not "no run was opened".
+    o.runUrl ? `Run: ${o.runUrl}` : 'Run: not in the CLI output (see the step log)',
     '',
     '| Results sent | Results not delivered | Files uploaded | Files not found |',
     '| ---: | ---: | ---: | ---: |',

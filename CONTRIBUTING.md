@@ -36,8 +36,10 @@ major tag (`v1` to `v2`) and say so in the release notes. Adding an optional inp
 
 Consumers use a moving major tag (`plune-ai/report-action@v1`). Pushing a full tag (`v1.2.0`) runs
 `release.yml`, which creates the release and moves `v1`. The action pins an exact `@plune-ai/cli`
-version in `cli-version`. Bump it in its own pull request: change the default in `action.yml`, the table
-in the README and the version in the tests, and let `smoke.yml` check the new CLI's output lines.
+version in `cli-version`. Bump it in its own pull request: change the default in `action.yml` and the
+table in the README, check the CLI's changelog for flags, variables, exit codes and the output lines
+`scripts/run-import.mjs` reads, and let `smoke.yml` check the new CLI's output lines. The fixtures in
+`test/parse-output.test.mjs` hold those lines as 0.24.0 printed them; change them only when a line changes.
 
 ## Commit messages
 
