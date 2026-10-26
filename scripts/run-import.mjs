@@ -6,7 +6,7 @@
 // is where it shows (the smoke workflow runs the real, pinned CLI against it too).
 
 import { spawn } from 'node:child_process';
-import { appendFileSync, existsSync } from 'node:fs';
+import { appendFileSync, existsSync, realpathSync } from 'node:fs';
 import { win32 } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -157,7 +157,8 @@ export function summaryMarkdown(o) {
   ].join('\n');
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// import.meta.url is the real path; argv[1] is the path as typed, which can go through a symlink or junction (#8).
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   try {
     const { code, outputs } = await runImport(process.env);
     writeOutputs(outputs, process.env.GITHUB_OUTPUT);

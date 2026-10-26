@@ -3,9 +3,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { runImport, writeOutputs, npxCommand } from '../scripts/run-import.mjs';
 
 const dir = mkdtempSync(join(tmpdir(), 'report-action-'));
@@ -72,6 +73,18 @@ test('GitHub Action · report-action · script · with no cli given, runImport s
   await runImport(env, { write: () => {}, spawnImpl: fakeSpawn });
   const npx = npxCommand(process.platform, process.execPath);
   assert.deepEqual(seen, { command: npx.command, args: [...npx.leadingArgs, '-y', '@plune-ai/cli@0.24.0', 'run', 'import', 'my reports/r.xml'] });
+});
+
+test('GitHub Action · report-action · script · started through a symlink or junction, it runs as it does by its real path (#8)', () => {
+  // A self-hosted runner's work folder can be a link: the script must not take that for "imported, not run".
+  const link = join(dir, 'linked-scripts');
+  symlinkSync(fileURLToPath(new URL('../scripts', import.meta.url)), link, 'junction');
+  const run = (script) => spawnSync(process.execPath, [script], { env: { PATH: process.env.PATH }, encoding: 'utf8' });
+  const direct = run(fileURLToPath(new URL('../scripts/run-import.mjs', import.meta.url)));
+  const linked = run(join(link, 'run-import.mjs'));
+  assert.equal(direct.status, 2, direct.stderr);
+  assert.match(direct.stdout, /^::error::/);
+  assert.deepEqual({ status: linked.status, stdout: linked.stdout }, { status: direct.status, stdout: direct.stdout });
 });
 
 test('GitHub Action · report-action · script · GITHUB_OUTPUT gets name=value lines', () => {
