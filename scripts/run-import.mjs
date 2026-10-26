@@ -6,9 +6,9 @@
 // is where it shows (the smoke workflow runs the real, pinned CLI against it too).
 
 import { spawn } from 'node:child_process';
-import { appendFileSync, existsSync } from 'node:fs';
+import { appendFileSync, existsSync, realpathSync } from 'node:fs';
 import { win32 } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const SEMVER = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
 
@@ -157,7 +157,13 @@ export function summaryMarkdown(o) {
   ].join('\n');
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// argv[1] is the path as typed, which can go through a symlink or junction (#8), and so can import.meta.url under
+// --preserve-symlinks-main: compare both resolved. An argv[1] that is no file (node -e … arg) means imported, not run.
+let isMain = false;
+try {
+  isMain = realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1]);
+} catch {}
+if (isMain) {
   try {
     const { code, outputs } = await runImport(process.env);
     writeOutputs(outputs, process.env.GITHUB_OUTPUT);
