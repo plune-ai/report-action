@@ -10,7 +10,8 @@ This is a thin composite GitHub Action over [`@plune-ai/cli`](https://github.com
 - `scripts/run-import.mjs`: builds the CLI call, runs it, parses its output, writes the outputs. No
   dependencies; testable without GitHub.
 - `test/`: node tests (`npm test`, node 20+) and `stub-plune.mjs`, a local stand-in for the Plune API.
-- `fixtures/`: a JUnit report, one with a missing attachment, and an `allure-results` folder.
+- `fixtures/`: a JUnit report, one with a missing attachment, and an `allure-results` folder; `dotnet/`
+  and `gradle/` are small test projects that `smoke.yml` runs for real to produce their reports.
 - `examples/`: copy-paste consumer workflows.
 - `.github/workflows/`: `ci.yml` (unit tests), `smoke.yml` (the action, from the working tree, against
   the stub and the real pinned CLI, no secret), `self-test.yml` (the action on a real runner against a
@@ -21,7 +22,7 @@ This is a thin composite GitHub Action over [`@plune-ai/cli`](https://github.com
 ## Tests
 
 Names start with `GitHub Action · report-action · ` and then what is tested (`parse`, `call`, `script`,
-`JUnit`, `Allure`), so a red check says what broke.
+`JUnit`, `Allure`, `.NET`, `Gradle`), so a red check says what broke.
 
 ```
 npm test

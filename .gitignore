@@ -1,2 +1,6 @@
 node_modules/
 .plune/
+bin/
+obj/
+build/
+.gradle/

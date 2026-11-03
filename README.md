@@ -62,8 +62,22 @@ To attach a file to a test, have the test print `[[ATTACHMENT|shots/cart.png]]` 
 ### Java: JUnit 5 with Maven or Gradle (Allure results)
 
 Surefire and Gradle write one XML file per test class, and the import takes one file, so for Java use
-the Allure results folder: add `allure-junit5` to the build and point `report` at the folder. Tests,
-steps and `Allure.addAttachment(...)` files all travel with it.
+the Allure results folder: add `io.qameta.allure:allure-jupiter` to the build, set
+`allure.results.directory` (Allure's default is `allure-results` in the working directory) and point
+`report` at the folder. Tests, steps and `Allure.addAttachment(...)` files all travel with it. Before
+2.35.1 the artifact was `allure-junit5`; from 2.35.1 that name is only a relocation POM with no jar of
+its own, so depend on `allure-jupiter`.
+
+```kotlin
+// build.gradle.kts
+dependencies {
+    testImplementation("io.qameta.allure:allure-jupiter:2.35.5")
+}
+tasks.test {
+    useJUnitPlatform()
+    systemProperty("allure.results.directory", layout.buildDirectory.dir("allure-results").get().asFile.path)
+}
+```
 
 ```yaml
 - run: mvn -B test            # or: ./gradlew test
@@ -76,6 +90,30 @@ steps and `Allure.addAttachment(...)` files all travel with it.
 
 If you do have a single JUnit XML file, print the same `[[ATTACHMENT|path]]` line from the test
 (`System.out.println`) and pass the file as `report`.
+
+### .NET: xUnit with `dotnet test` (JUnit XML)
+
+Add the [`JunitXml.TestLogger`](https://www.nuget.org/packages/JunitXml.TestLogger) package to the test
+project; `dotnet test` then writes one JUnit XML file for the run.
+
+```yaml
+- run: dotnet test --logger "junit;LogFilePath=$RESULTS_DIR/report.xml"
+  env:
+    RESULTS_DIR: ${{ github.workspace }}/test-results
+- uses: plune-ai/report-action@v1
+  if: ${{ always() }}
+  with:
+    token: ${{ secrets.PLUNE_TOKEN }}
+    report: test-results/report.xml
+```
+
+To attach a file, have the test save it in the report's folder (it can read `RESULTS_DIR` from the
+environment) and write `[[ATTACHMENT|cart.png]]` through `ITestOutputHelper.WriteLine`: xUnit v2 does not
+capture `Console.WriteLine`, so a line printed that way never reaches the report. In PowerShell (the
+default shell on Windows runners) the variable is `$env:RESULTS_DIR`.
+
+The smoke workflow runs both the Gradle and the .NET commands above on a GitHub-hosted Ubuntu runner
+(`fixtures/gradle`, `fixtures/dotnet`).
 
 ### Playwright (JSON report)
 

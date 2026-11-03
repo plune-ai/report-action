@@ -237,3 +237,112 @@ jobs:
         env:
           OUTCOME: ${{ steps.report.outcome }}
         run: test "$OUTCOME" = failure
+
+  # A real stack, not a fixture: xUnit through JunitXml.TestLogger, the commands the docs give for .NET.
+  dotnet:
+    name: "GitHub Action · report-action · .NET · dotnet test with the JUnit logger: 3 results and the attached file arrive"
+    runs-on: ubuntu-latest
+    env:
+      RESULTS_DIR: ${{ github.workspace }}/dotnet-results   # the logger writes here, and the test saves its file here
+    steps:
+      - uses: actions/checkout@v4.4.0
+      - uses: actions/setup-dotnet@v6.0.0
+        with:
+          dotnet-version: '10.0.402'
+
+      - name: Start the local Plune API stub
+        run: |
+          node test/stub-plune.mjs 8791 > "$RUNNER_TEMP/stub.log" 2>&1 &
+          for _ in $(seq 20); do curl -fs http://127.0.0.1:8791/__state > /dev/null && exit 0; sleep 0.5; done
+          cat "$RUNNER_TEMP/stub.log"; exit 1
+
+      - name: dotnet test (one test fails on purpose, so the step is red)
+        continue-on-error: true
+        working-directory: fixtures/dotnet
+        run: dotnet test --logger "junit;LogFilePath=$RESULTS_DIR/report.xml"
+
+      - name: The report the logger wrote
+        run: cat "$RESULTS_DIR/report.xml"
+
+      - id: report
+        uses: ./
+        with:
+          token: smoke-token-not-a-secret
+          api-url: http://127.0.0.1:8791
+          report: dotnet-results/report.xml
+          run-title: smoke dotnet
+          env: smoke
+          labels: smoke, dotnet
+
+      # `failed` is 0: it counts results that did not reach Plune. The failed test is in `statuses`.
+      - name: The outputs and the stub agree
+        env:
+          TOKEN: smoke-token-not-a-secret
+          RUN_URL: ${{ steps.report.outputs.run-url }}
+          UPLOADED: ${{ steps.report.outputs.uploaded }}
+          FAILED: ${{ steps.report.outputs.failed }}
+          FILES_UPLOADED: ${{ steps.report.outputs.files-uploaded }}
+          MISSING: ${{ steps.report.outputs.missing-attachments }}
+          EXPECT: '{"uploaded":"3","failed":"0","files-uploaded":"1","missing-attachments":"0","results":3,"files":1,"statuses":"failure,pass,skipped"}'
+        run: node test/smoke-assert.mjs http://127.0.0.1:8791
+
+  # A real stack, not a fixture: JUnit 5 with allure-jupiter under Gradle, the commands the docs give for Gradle.
+  # The report is the allure-results folder: Gradle writes one JUnit XML file per class and the import takes one file.
+  gradle:
+    name: "GitHub Action · report-action · Gradle · gradle test with allure-jupiter: 3 results and the attached file arrive"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.4.0
+      - uses: actions/setup-java@v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      # v5, not v6: v6 bundles a caching component under separate, non-MIT terms of use.
+      - uses: gradle/actions/setup-gradle@v5.0.2
+        with:
+          gradle-version: '9.8.1'
+
+      - name: Start the local Plune API stub
+        run: |
+          node test/stub-plune.mjs 8791 > "$RUNNER_TEMP/stub.log" 2>&1 &
+          for _ in $(seq 20); do curl -fs http://127.0.0.1:8791/__state > /dev/null && exit 0; sleep 0.5; done
+          cat "$RUNNER_TEMP/stub.log"; exit 1
+
+      - name: gradle test (one test fails on purpose, so the step is red)
+        continue-on-error: true
+        working-directory: fixtures/gradle
+        run: gradle test
+
+      - name: The folder Allure wrote
+        run: ls -l fixtures/gradle/build/allure-results
+
+      # Gradle's own JUnit XML, one file per class, as written: a live sample for reading a folder of
+      # JUnit files (plune-ai/plune#2309). Not imported here.
+      - uses: actions/upload-artifact@v7.0.2
+        if: ${{ always() }}
+        with:
+          name: gradle-junit-xml
+          path: fixtures/gradle/build/test-results/test/
+          retention-days: 7
+
+      - id: report
+        uses: ./
+        with:
+          token: smoke-token-not-a-secret
+          api-url: http://127.0.0.1:8791
+          report: fixtures/gradle/build/allure-results
+          run-title: smoke gradle
+          env: smoke
+          labels: smoke, gradle
+
+      # `failed` is 0: it counts results that did not reach Plune. The failed test is in `statuses`.
+      - name: The outputs and the stub agree
+        env:
+          TOKEN: smoke-token-not-a-secret
+          RUN_URL: ${{ steps.report.outputs.run-url }}
+          UPLOADED: ${{ steps.report.outputs.uploaded }}
+          FAILED: ${{ steps.report.outputs.failed }}
+          FILES_UPLOADED: ${{ steps.report.outputs.files-uploaded }}
+          MISSING: ${{ steps.report.outputs.missing-attachments }}
+          EXPECT: '{"uploaded":"3","failed":"0","files-uploaded":"1","missing-attachments":"0","results":3,"files":1,"statuses":"failed,passed,skipped"}'
+        run: node test/smoke-assert.mjs http://127.0.0.1:8791
