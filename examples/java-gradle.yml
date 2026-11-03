@@ -4,8 +4,9 @@
 # the report is the allure-results folder (allure-jupiter writes every test, its steps and its
 # attachments there). Add io.qameta.allure:allure-jupiter to the build (before 2.35.1 it was
 # allure-junit5, now only a relocation POM with no jar) and set the test task's system
-# property allure.results.directory to build/allure-results, as fixtures/gradle/build.gradle.kts does;
-# Allure.addAttachment(...) in a test then travels to Plune with its result.
+# property allure.results.directory to build/allure-results, as fixtures/gradle/build.gradle.kts does.
+# Allure.step(...) and Allure.addAttachment(...) in a test then travel to Plune with its result; the
+# @Step and @Attachment annotations also need the AspectJ agent, as Allure's documentation describes.
 name: Tests
 
 on:

@@ -14,7 +14,7 @@ const actual = {
   'missing-attachments': env.MISSING,
   results: state.results.length,
   files: state.files.length,
-  // The statuses as the report spelled them, sorted: checked only when EXPECT names it.
+  // The statuses as the CLI sent them (rawStatus), sorted: checked only when EXPECT names it.
   statuses: state.results.map((r) => r.rawStatus).sort().join(','),
 };
 const bad = [];
