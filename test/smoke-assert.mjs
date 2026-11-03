@@ -2,7 +2,7 @@
 // the local stub of the Plune API actually received. Exits 1 with every mismatch listed.
 //   EXPECT='{"uploaded":"3","failed":"0","files-uploaded":"1","missing-attachments":"0","results":3,"files":1}'
 // `failed` is the action's output: results that did not reach Plune, not failed tests. A failed test shows in
-// `statuses` (optional), e.g. "failure,pass,skipped" for JUnit XML.
+// `statuses` (optional), e.g. "failure,pass,skipped" for JUnit XML. `keys` (optional) are the case keys looked up.
 import { argv, env, exit } from 'node:process';
 
 const expect = JSON.parse(env.EXPECT);
@@ -16,6 +16,8 @@ const actual = {
   files: state.files.length,
   // The statuses as the CLI sent them (rawStatus), sorted: checked only when EXPECT names it.
   statuses: state.results.map((r) => r.rawStatus).sort().join(','),
+  // The case keys the CLI looked up (`classname#name` for JUnit), sorted: checked only when EXPECT names it.
+  keys: state.keys.sort().join(','),
 };
 const bad = [];
 for (const [k, v] of Object.entries(expect)) if (String(actual[k]) !== String(v)) bad.push(`${k}: expected ${v}, got ${actual[k]}`);

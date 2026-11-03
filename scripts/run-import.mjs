@@ -45,7 +45,7 @@ export function buildInvocation(env) {
   const input = (name) => (env[`INPUT_${name}`] ?? '').trim();
   const version = input('CLI_VERSION');
   if (!SEMVER.test(version)) throw new Error(`cli-version must be an exact version such as 0.24.0, got "${version}".`);
-  if (input('REPORT') === '') throw new Error('report is required: the path of a JUnit XML or Playwright JSON file, or an allure-results folder.');
+  if (input('REPORT') === '') throw new Error('report is required: the path of a JUnit XML or Playwright JSON file, an allure-results folder or a folder of JUnit XML files.');
   if (input('TOKEN') === '') {
     throw new Error('token is empty. Pass a Plune API token from a secret: token: ${{ secrets.PLUNE_TOKEN }} (secrets are not available to pull requests from forks).');
   }

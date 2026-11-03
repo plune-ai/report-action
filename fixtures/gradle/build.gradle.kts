@@ -1,4 +1,5 @@
-// Used by .github/workflows/smoke.yml (job gradle): a real `gradle test` run whose allure-results folder the action imports.
+// Used by .github/workflows/smoke.yml: a real `gradle test` run whose allure-results folder (job gradle) and
+// build/test-results/test folder (job gradle-junit) the action imports.
 plugins {
     java
 }

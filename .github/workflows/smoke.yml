@@ -295,7 +295,7 @@ jobs:
         run: cat "$RUNNER_TEMP/stub.log"
 
   # A real stack, not a fixture: JUnit 5 with allure-jupiter under Gradle, the commands the docs give for Gradle.
-  # The report is the allure-results folder: Gradle writes one JUnit XML file per class and the import takes one file.
+  # The report is the allure-results folder; job gradle-junit imports the JUnit XML folder of the same project.
   gradle:
     name: "GitHub Action · report-action · Gradle · gradle test with allure-jupiter: 4 results from two classes and the attached file arrive"
     runs-on: ubuntu-latest
@@ -344,6 +344,7 @@ jobs:
           labels: smoke, gradle
 
       # `failed` is 0: it counts results that did not reach Plune. The failed test is in `statuses`.
+      # Allure's JUnit 5 names keep the parentheses, as Gradle's JUnit XML does (job gradle-junit).
       - name: The outputs and the stub agree
         env:
           TOKEN: smoke-token-not-a-secret
@@ -352,7 +353,7 @@ jobs:
           FAILED: ${{ steps.report.outputs.failed }}
           FILES_UPLOADED: ${{ steps.report.outputs.files-uploaded }}
           MISSING: ${{ steps.report.outputs.missing-attachments }}
-          EXPECT: '{"uploaded":"4","failed":"0","files-uploaded":"1","missing-attachments":"0","results":4,"files":1,"statuses":"failed,passed,passed,skipped"}'
+          EXPECT: '{"uploaded":"4","failed":"0","files-uploaded":"1","missing-attachments":"0","results":4,"files":1,"statuses":"failed,passed,passed,skipped","keys":"cart.CartTest#addsAnItem(),cart.CartTest#appliesACoupon(),cart.CartTest#totalIsWrong(),cart.PriceTest#addsTax()"}'
         run: node test/smoke-assert.mjs http://127.0.0.1:8791
 
       - name: What the stub saw, when a step failed
@@ -360,7 +361,7 @@ jobs:
         run: cat "$RUNNER_TEMP/stub.log"
 
   # A real stack, not a fixture: JUnit 5 with allure-jupiter under Maven, the commands the docs give for Maven.
-  # The report is the allure-results folder: Surefire writes one JUnit XML file per class and the import takes one file.
+  # The report is the allure-results folder; job maven-junit imports the Surefire folder of the same project.
   maven:
     name: "GitHub Action · report-action · Maven · mvn test with allure-jupiter: 4 results from two classes and the attached file arrive"
     runs-on: ubuntu-latest
@@ -406,6 +407,7 @@ jobs:
           labels: smoke, maven
 
       # `failed` is 0: it counts results that did not reach Plune. The failed test is in `statuses`.
+      # Allure's JUnit 5 names keep the parentheses; Surefire's JUnit XML has none (job maven-junit).
       - name: The outputs and the stub agree
         env:
           TOKEN: smoke-token-not-a-secret
@@ -414,7 +416,121 @@ jobs:
           FAILED: ${{ steps.report.outputs.failed }}
           FILES_UPLOADED: ${{ steps.report.outputs.files-uploaded }}
           MISSING: ${{ steps.report.outputs.missing-attachments }}
-          EXPECT: '{"uploaded":"4","failed":"0","files-uploaded":"1","missing-attachments":"0","results":4,"files":1,"statuses":"failed,passed,passed,skipped"}'
+          EXPECT: '{"uploaded":"4","failed":"0","files-uploaded":"1","missing-attachments":"0","results":4,"files":1,"statuses":"failed,passed,passed,skipped","keys":"cart.CartTest#addsAnItem(),cart.CartTest#appliesACoupon(),cart.CartTest#totalIsWrong(),cart.PriceTest#addsTax()"}'
+        run: node test/smoke-assert.mjs http://127.0.0.1:8791
+
+      - name: What the stub saw, when a step failed
+        if: ${{ failure() }}
+        run: cat "$RUNNER_TEMP/stub.log"
+
+  # A real stack, not a fixture: the project of job maven, but the action gets the folder Surefire writes
+  # (a TEST-<class>.xml per class), no Allure: read as one run since CLI 0.32.0 (plune-ai/plune#2309).
+  maven-junit:
+    name: "GitHub Action · report-action · Maven · surefire-reports folder: 4 results from two classes"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.1.0
+      - uses: actions/setup-java@v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Start the local Plune API stub
+        run: |
+          node test/stub-plune.mjs 8791 > "$RUNNER_TEMP/stub.log" 2>&1 &
+          for _ in $(seq 20); do curl -fs http://127.0.0.1:8791/__state > /dev/null && exit 0; sleep 0.5; done
+          cat "$RUNNER_TEMP/stub.log"; exit 1
+
+      - name: mvn -B test (one test fails on purpose, so the step is red)
+        continue-on-error: true
+        working-directory: fixtures/maven
+        run: mvn -B test
+
+      - name: The folder Surefire wrote
+        run: ls -l fixtures/maven/target/surefire-reports
+
+      - id: report
+        uses: ./
+        with:
+          token: smoke-token-not-a-secret
+          api-url: http://127.0.0.1:8791
+          working-directory: fixtures/maven
+          report: target/surefire-reports
+          run-title: smoke maven junit
+          env: smoke
+          labels: smoke, maven, junit
+
+      # `failed` is 0: it counts results that did not reach Plune. The failed test is in `statuses`.
+      # No file: the tests print no [[ATTACHMENT|...]] line, and Allure.addAttachment does not reach the XML.
+      # Surefire's names have no parentheses, so the keys differ from job maven's.
+      - name: The outputs and the stub agree
+        env:
+          TOKEN: smoke-token-not-a-secret
+          RUN_URL: ${{ steps.report.outputs.run-url }}
+          UPLOADED: ${{ steps.report.outputs.uploaded }}
+          FAILED: ${{ steps.report.outputs.failed }}
+          FILES_UPLOADED: ${{ steps.report.outputs.files-uploaded }}
+          MISSING: ${{ steps.report.outputs.missing-attachments }}
+          EXPECT: '{"uploaded":"4","failed":"0","files-uploaded":"0","missing-attachments":"0","results":4,"files":0,"statuses":"failure,pass,pass,skipped","keys":"cart.CartTest#addsAnItem,cart.CartTest#appliesACoupon,cart.CartTest#totalIsWrong,cart.PriceTest#addsTax"}'
+        run: node test/smoke-assert.mjs http://127.0.0.1:8791
+
+      - name: What the stub saw, when a step failed
+        if: ${{ failure() }}
+        run: cat "$RUNNER_TEMP/stub.log"
+
+  # A real stack, not a fixture: the project of job gradle, but the action gets the folder Gradle writes
+  # (a TEST-<class>.xml per class, and binary/ that is not read), no Allure: read as one run since CLI 0.32.0.
+  gradle-junit:
+    name: "GitHub Action · report-action · Gradle · build/test-results/test folder: 4 results from two classes"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.1.0
+      - uses: actions/setup-java@v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      # v5, not v6: v6 bundles a caching component under separate, non-MIT terms of use.
+      - uses: gradle/actions/setup-gradle@v5.0.2
+        with:
+          gradle-version: '9.8.1'
+
+      - name: Start the local Plune API stub
+        run: |
+          node test/stub-plune.mjs 8791 > "$RUNNER_TEMP/stub.log" 2>&1 &
+          for _ in $(seq 20); do curl -fs http://127.0.0.1:8791/__state > /dev/null && exit 0; sleep 0.5; done
+          cat "$RUNNER_TEMP/stub.log"; exit 1
+
+      - name: gradle test (one test fails on purpose, so the step is red)
+        continue-on-error: true
+        working-directory: fixtures/gradle
+        run: gradle test
+
+      - name: The folder Gradle wrote
+        run: ls -lR fixtures/gradle/build/test-results/test
+
+      - id: report
+        uses: ./
+        with:
+          token: smoke-token-not-a-secret
+          api-url: http://127.0.0.1:8791
+          working-directory: fixtures/gradle
+          report: build/test-results/test
+          run-title: smoke gradle junit
+          env: smoke
+          labels: smoke, gradle, junit
+
+      # `failed` is 0: it counts results that did not reach Plune. The failed test is in `statuses`.
+      # No file: the tests print no [[ATTACHMENT|...]] line, and Allure.addAttachment does not reach the XML.
+      # Gradle keeps the parentheses in the names.
+      - name: The outputs and the stub agree
+        env:
+          TOKEN: smoke-token-not-a-secret
+          RUN_URL: ${{ steps.report.outputs.run-url }}
+          UPLOADED: ${{ steps.report.outputs.uploaded }}
+          FAILED: ${{ steps.report.outputs.failed }}
+          FILES_UPLOADED: ${{ steps.report.outputs.files-uploaded }}
+          MISSING: ${{ steps.report.outputs.missing-attachments }}
+          EXPECT: '{"uploaded":"4","failed":"0","files-uploaded":"0","missing-attachments":"0","results":4,"files":0,"statuses":"failure,pass,pass,skipped","keys":"cart.CartTest#addsAnItem(),cart.CartTest#appliesACoupon(),cart.CartTest#totalIsWrong(),cart.PriceTest#addsTax()"}'
         run: node test/smoke-assert.mjs http://127.0.0.1:8791
 
       - name: What the stub saw, when a step failed

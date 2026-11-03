@@ -59,16 +59,59 @@ To attach a file to a test, have the test print `[[ATTACHMENT|shots/cart.png]]` 
 (`print(...)` in pytest). The path is relative to the report's folder; a path that leads outside it
 (`..`, absolute, symlink) is refused by the CLI.
 
-### Java: JUnit 5 with Maven or Gradle (Allure results)
+### Java: JUnit 5 with Maven or Gradle
 
-Surefire and Gradle write one XML file per test class, and the import takes one file, so for Java use
-the Allure results folder. Add `io.qameta.allure:allure-jupiter` to the test dependencies (before
-2.35.1 it was `allure-junit5`; from 2.35.1 that name is only a relocation POM with no jar of its own),
-set `allure.results.directory` (Allure's default is `allure-results` in the working directory) and
-point `report` at the folder. Each test arrives with its status, the steps it made with
-`Allure.step(...)` and the files it added with `Allure.addAttachment(...)`; those two calls need nothing
-else. The `@Step` and `@Attachment` annotations also need the AspectJ agent, set up as Allure's
-documentation describes. The smoke workflow checks the attachment only.
+Surefire and Gradle write a JUnit XML file per test class (`TEST-<class>.xml`). Point `report` at their
+folder and the files arrive as one run; nothing to add to the build. Every `*.xml` directly in the folder
+that is a JUnit report is read. Subfolders (Gradle's `binary/`) and other files (Surefire's `*.txt`) are
+not, and an `*.xml` that is not JUnit is skipped with a line in the log. Needs `@plune-ai/cli` 0.32.0 or
+newer, which the default `cli-version` is.
+
+Maven:
+
+```yaml
+- run: mvn -B test
+- uses: plune-ai/report-action@v1
+  if: ${{ always() }}
+  with:
+    token: ${{ secrets.PLUNE_TOKEN }}
+    report: target/surefire-reports
+```
+
+Gradle:
+
+```yaml
+- run: ./gradlew test
+- uses: plune-ai/report-action@v1
+  if: ${{ always() }}
+  with:
+    token: ${{ secrets.PLUNE_TOKEN }}
+    report: build/test-results/test
+```
+
+Before you switch:
+
+- **Keys.** A test is matched to its case by `classname#name`. Gradle keeps the method's parentheses
+  (`cart.CartTest#addsAnItem()`), Surefire does not (`cart.CartTest#addsAnItem`), and Allure's JUnit 5
+  names keep them as Gradle's do. So a project that moves between Surefire and Gradle, or between Surefire
+  and Allure, meets its cases under other keys.
+- **Duration.** Surefire writes no `timestamp` on a suite, so Maven tests arrive without a duration for
+  now ([plune-ai/plune#2310](https://github.com/plune-ai/plune/issues/2310)). Gradle writes one.
+- **Files.** A file reaches a test only through a `[[ATTACHMENT|path]]` line in that test's own output
+  (`System.out.println`), and the path counts from the folder the XML file is in (`target/surefire-reports`,
+  `build/test-results/test`), so the file has to be below it. Gradle puts a test's output into its test
+  case only with `reports.junitXml.outputPerTestCase = true`; by default it keeps it at suite level, where
+  the import does not look for the line.
+
+#### With Allure, for steps and attached files
+
+Allure adds the steps a test made with `Allure.step(...)` and the files it added with
+`Allure.addAttachment(...)`, with no line to print. Add `io.qameta.allure:allure-jupiter` to the test
+dependencies (before 2.35.1 it was `allure-junit5`; from 2.35.1 that name is only a relocation POM with no
+jar of its own), set `allure.results.directory` (Allure's default is `allure-results` in the working
+directory) and point `report` at that folder instead. Those two calls need nothing else. The `@Step` and
+`@Attachment` annotations also need the AspectJ agent, set up as Allure's documentation describes. The
+smoke workflow checks the attachment only.
 
 Maven: the dependency in `pom.xml`, the folder in `src/test/resources/allure.properties`.
 
@@ -115,11 +158,6 @@ tasks.test {
     report: build/allure-results
 ```
 
-If you do have a single JUnit XML file, print the same `[[ATTACHMENT|path]]` line from the test
-(`System.out.println`) and pass the file as `report`. Gradle puts a test's output into its test case
-only with `reports.junitXml.outputPerTestCase = true`; by default it keeps it at suite level, where the
-import does not look for the line.
-
 ### .NET: xUnit with `dotnet test` (JUnit XML)
 
 Add the [`JunitXml.TestLogger`](https://www.nuget.org/packages/JunitXml.TestLogger) package to the test
@@ -144,20 +182,22 @@ A fixed name such as `report.xml` holds one file: with several test projects, or
 logger's tokens into the path, `LogFilePath=$RESULTS_DIR/{assembly}.xml`, and add `{framework}`
 (`{assembly}.{framework}.xml`) when a project targets several frameworks; the logger replaces them with
 the test assembly's name and the target framework (see its
-[configuration page](https://github.com/spekt/testlogger/wiki/Logger-Configuration)). The import takes
-one file, so give each file its own step of this action, and land them in one run with `key` and
-`shared-run` ([Several jobs, one run](#several-jobs-one-run)). The smoke workflow runs one project with
-the fixed name `report.xml`: these tokens are not run there.
+[configuration page](https://github.com/spekt/testlogger/wiki/Logger-Configuration)). Then pass the
+folder as `report` (`test-results`): every JUnit file in it arrives as one run, as for Java above. The
+smoke workflow runs one project with the fixed name `report.xml`: these tokens and a folder of .NET
+reports are not run there.
 
 To attach a file, have the test save it in the report's folder (it can read `RESULTS_DIR` from the
 environment) and write `[[ATTACHMENT|cart.png]]` through `ITestOutputHelper.WriteLine`: xUnit v2 does not
 capture `Console.WriteLine`, so a line printed that way never reaches the report.
 
-The smoke workflow (jobs `dotnet`, `gradle` and `maven`, projects in `fixtures/`) runs the same
-`dotnet test --logger …` command and the same Gradle and Maven build setup as above on a GitHub-hosted
-Ubuntu runner, with two differences: Gradle runs as `gradle test`, with no wrapper, and the test step
-has `continue-on-error: true` (so the job stays green while one test fails on purpose) instead of
-`if: always()` on the report step.
+The smoke workflow runs the commands above on a GitHub-hosted Ubuntu runner, on the projects in
+`fixtures/`: jobs `maven-junit` and `gradle-junit` import the Surefire and Gradle folders, `maven` and
+`gradle` the Allure folders of the same two projects, and `dotnet` the file of `dotnet test --logger …`.
+Two differences: Gradle runs as `gradle test`, with no wrapper, and the test step has
+`continue-on-error: true` (so the job stays green while one test fails on purpose) instead of
+`if: always()` on the report step. Not run or checked there: a `[[ATTACHMENT|…]]` line printed by a Java
+test, `outputPerTestCase`, durations, and the `@Step` and `@Attachment` annotations.
 
 ### Playwright (JSON report)
 
@@ -217,7 +257,7 @@ See [`examples/shards-auto-close.yml`](./examples/shards-auto-close.yml).
 | Input | Default | Description |
 | --- | --- | --- |
 | `token` | required | Plune API token, from a secret. Passed to the CLI as `PLUNE_TOKEN` in the environment and masked in the log. |
-| `report` | required | A JUnit XML file, a Playwright JSON file or an `allure-results` folder, relative to `working-directory`. The format is detected. |
+| `report` | required | A JUnit XML file, a Playwright JSON file, an `allure-results` folder or a folder of JUnit XML files (`target/surefire-reports`, `build/test-results/test`; CLI 0.32.0 or newer), relative to `working-directory`. The format is detected. |
 | `run-title` | | Title of the run (`PLUNE_RUN_TITLE`). |
 | `env` | | Environment the tests ran against, e.g. `staging` (`PLUNE_ENV`). |
 | `labels` | | Run labels (`PLUNE_LABELS`), comma-separated or one per line. |
@@ -229,7 +269,7 @@ See [`examples/shards-auto-close.yml`](./examples/shards-auto-close.yml).
 | `fail-on-missing-attachments` | `false` | Fail the step when a file the report names is not there. The results are sent either way. |
 | `fail-on-failures` | `false` | Fail the step on the platform's verdict (a failed or broken result that is not muted, or an expected case that never ran). Off: a red test does not fail the import. |
 | `working-directory` | `.` | Directory the `report` path is relative to. |
-| `cli-version` | `0.30.2` | Exact version of `@plune-ai/cli` to run. Pinned; floating tags such as `latest` are refused. |
+| `cli-version` | `0.32.0` | Exact version of `@plune-ai/cli` to run. Pinned; floating tags such as `latest` are refused. |
 
 ## Outputs
 

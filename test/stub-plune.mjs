@@ -9,7 +9,7 @@ import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
 
 export async function startStub(port = 0) {
-  const state = { auth: [], runs: 0, results: [], files: [], meta: [], closed: 0 };
+  const state = { auth: [], runs: 0, results: [], files: [], meta: [], closed: 0, keys: [] };
   const server = createServer((req, res) => {
     const chunks = [];
     req.on('data', (c) => chunks.push(c));
@@ -29,6 +29,7 @@ export async function startStub(port = 0) {
         return reply(201, { run: { id: 'stub-run-1' }, joined: false });
       }
       if (url === '/v1/test-cases/resolve') {
+        state.keys.push(...(body.keys ?? []).map((k) => k.value));
         return reply(200, { results: (body.keys ?? []).map((key) => ({ key, testCaseId: 'tc-1' })) });
       }
       if (url.endsWith('/results')) {
