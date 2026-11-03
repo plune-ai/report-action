@@ -96,8 +96,8 @@ Before you switch:
   names keep them as Gradle's do. So a project that moves between Surefire and Gradle, or between Surefire
   and Allure, meets its cases under other keys.
 - **Duration.** Gradle writes a `timestamp` on a suite, and a test's span starts there. Surefire writes
-  none, so a Maven test's span ends when the import reads the report. Either way the duration is the
-  test's own `time` (`@plune-ai/cli` 0.32.1 or newer, [plune-ai/plune#2310](https://github.com/plune-ai/plune/issues/2310)).
+  none, so from `@plune-ai/cli` 0.32.1 ([plune-ai/plune#2310](https://github.com/plune-ai/plune/issues/2310))
+  a Maven test's span ends when the import reads the report. Either way the duration is the test's own `time`.
 - **Files.** A file reaches a test only through a `[[ATTACHMENT|path]]` line in that test's own output
   (`System.out.println`), and the path counts from the folder the XML file is in (`target/surefire-reports`,
   `build/test-results/test`), so the file has to be below it. Gradle puts a test's output into its test
