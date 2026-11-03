@@ -3,8 +3,8 @@
 [![@plune-ai/cli](https://img.shields.io/npm/v/@plune-ai/cli?label=%40plune-ai%2Fcli)](https://www.npmjs.com/package/@plune-ai/cli)
 [![license](https://img.shields.io/github/license/plune-ai/report-action)](./LICENSE)
 
-Send the report your test framework already writes (JUnit XML, Playwright JSON or an Allure results
-folder) to [Plune](https://plune.ai) in one step. No package to install in your project, no
+Send the report your test framework already writes (a JUnit XML file or a folder of them, Playwright
+JSON, or an Allure results folder) to [Plune](https://plune.ai) in one step. No package to install in your project, no
 interactive login: a token from a repository secret is enough.
 
 > **Not on the GitHub Marketplace yet.** Marketplace publication is not done. Use the action by
@@ -101,7 +101,8 @@ Before you switch:
   (`System.out.println`), and the path counts from the folder the XML file is in (`target/surefire-reports`,
   `build/test-results/test`), so the file has to be below it. Gradle puts a test's output into its test
   case only with `reports.junitXml.outputPerTestCase = true`; by default it keeps it at suite level, where
-  the import does not look for the line.
+  the import does not look for the line. Surefire moves the output out of the XML when
+  `redirectTestOutputToFile` is `true`, and the line does not reach the report either.
 
 #### With Allure, for steps and attached files
 
@@ -183,7 +184,9 @@ logger's tokens into the path, `LogFilePath=$RESULTS_DIR/{assembly}.xml`, and ad
 (`{assembly}.{framework}.xml`) when a project targets several frameworks; the logger replaces them with
 the test assembly's name and the target framework (see its
 [configuration page](https://github.com/spekt/testlogger/wiki/Logger-Configuration)). Then pass the
-folder as `report` (`test-results`): every JUnit file in it arrives as one run, as for Java above. The
+folder as `report` (`test-results`): every JUnit file in it arrives as one run, as for Java above. A
+test whose `classname` and `name` are the same in two frameworks' files has one key (`<class>#<name>`)
+in that run, so Plune keeps the first result and counts the second as already there. The
 smoke workflow runs one project with the fixed name `report.xml`: these tokens and a folder of .NET
 reports are not run there.
 

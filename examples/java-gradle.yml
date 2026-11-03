@@ -3,7 +3,7 @@
 # Gradle writes a JUnit XML file per test class into build/test-results/test, and the action reads
 # that folder as one run (@plune-ai/cli 0.32.0 or newer, the default cli-version): nothing to add to
 # the build. Keys are classname#name with the method's parentheses (cart.CartTest#addsAnItem());
-# Surefire drops them, so a move to Maven meets the cases under other keys. A file reaches a test
+# Surefire drops them, so a move to Maven's Surefire folder meets the cases under other keys. A file reaches a test
 # through a [[ATTACHMENT|path]] line in its output, the path counted from build/test-results/test, and
 # only with reports.junitXml.outputPerTestCase = true in the test task (by default Gradle keeps the
 # output at suite level, where the import does not look).

@@ -5,7 +5,8 @@
 # the pom. Keys are classname#name without parentheses (cart.CartTest#addsAnItem); Gradle and Allure
 # keep them, so switching between them meets the cases under other keys. Maven tests arrive without a
 # duration for now (plune-ai/plune#2310). A file reaches a test through a [[ATTACHMENT|path]] line in
-# its output, the path counted from target/surefire-reports.
+# its output, the path counted from target/surefire-reports; with redirectTestOutputToFile=true Surefire
+# moves that output out of the XML and the line does not reach the report.
 #
 # For steps and files attached with Allure.addAttachment(...), use Allure instead: add
 # io.qameta.allure:allure-jupiter to the pom (before 2.35.1 it was allure-junit5, now only a relocation
