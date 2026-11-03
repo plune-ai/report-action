@@ -1,6 +1,8 @@
 // Used by .github/workflows/smoke.yml: compare what the action reported (outputs, passed in as env) and what
 // the local stub of the Plune API actually received. Exits 1 with every mismatch listed.
 //   EXPECT='{"uploaded":"3","failed":"0","files-uploaded":"1","missing-attachments":"0","results":3,"files":1}'
+// `failed` is the action's output: results that did not reach Plune, not failed tests. A failed test shows in
+// `statuses` (optional), e.g. "failure,pass,skipped" for JUnit XML.
 import { argv, env, exit } from 'node:process';
 
 const expect = JSON.parse(env.EXPECT);
@@ -12,6 +14,8 @@ const actual = {
   'missing-attachments': env.MISSING,
   results: state.results.length,
   files: state.files.length,
+  // The statuses as the CLI sent them (rawStatus), sorted: checked only when EXPECT names it.
+  statuses: state.results.map((r) => r.rawStatus).sort().join(','),
 };
 const bad = [];
 for (const [k, v] of Object.entries(expect)) if (String(actual[k]) !== String(v)) bad.push(`${k}: expected ${v}, got ${actual[k]}`);

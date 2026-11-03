@@ -1,2 +1,9 @@
 node_modules/
 .plune/
+fixtures/dotnet/bin/
+fixtures/dotnet/obj/
+fixtures/dotnet/TestResults/
+fixtures/gradle/build/
+fixtures/gradle/.gradle/
+fixtures/gradle/.kotlin/
+fixtures/maven/target/

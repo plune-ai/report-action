@@ -62,20 +62,102 @@ To attach a file to a test, have the test print `[[ATTACHMENT|shots/cart.png]]` 
 ### Java: JUnit 5 with Maven or Gradle (Allure results)
 
 Surefire and Gradle write one XML file per test class, and the import takes one file, so for Java use
-the Allure results folder: add `allure-junit5` to the build and point `report` at the folder. Tests,
-steps and `Allure.addAttachment(...)` files all travel with it.
+the Allure results folder. Add `io.qameta.allure:allure-jupiter` to the test dependencies (before
+2.35.1 it was `allure-junit5`; from 2.35.1 that name is only a relocation POM with no jar of its own),
+set `allure.results.directory` (Allure's default is `allure-results` in the working directory) and
+point `report` at the folder. Each test arrives with its status, the steps it made with
+`Allure.step(...)` and the files it added with `Allure.addAttachment(...)`; those two calls need nothing
+else. The `@Step` and `@Attachment` annotations also need the AspectJ agent, set up as Allure's
+documentation describes. The smoke workflow checks the attachment only.
+
+Maven: the dependency in `pom.xml`, the folder in `src/test/resources/allure.properties`.
+
+```xml
+<dependency>
+  <groupId>io.qameta.allure</groupId>
+  <artifactId>allure-jupiter</artifactId>
+  <version>2.35.5</version>
+  <scope>test</scope>
+</dependency>
+```
+
+```properties
+allure.results.directory=target/allure-results
+```
 
 ```yaml
-- run: mvn -B test            # or: ./gradlew test
+- run: mvn -B test
 - uses: plune-ai/report-action@v1
   if: ${{ always() }}
   with:
     token: ${{ secrets.PLUNE_TOKEN }}
-    report: target/allure-results   # Gradle: build/allure-results
+    report: target/allure-results
+```
+
+Gradle: both in `build.gradle.kts`.
+
+```kotlin
+dependencies {
+    testImplementation("io.qameta.allure:allure-jupiter:2.35.5")
+}
+tasks.test {
+    useJUnitPlatform()
+    systemProperty("allure.results.directory", layout.buildDirectory.dir("allure-results").get().asFile.path)
+}
+```
+
+```yaml
+- run: ./gradlew test
+- uses: plune-ai/report-action@v1
+  if: ${{ always() }}
+  with:
+    token: ${{ secrets.PLUNE_TOKEN }}
+    report: build/allure-results
 ```
 
 If you do have a single JUnit XML file, print the same `[[ATTACHMENT|path]]` line from the test
-(`System.out.println`) and pass the file as `report`.
+(`System.out.println`) and pass the file as `report`. Gradle puts a test's output into its test case
+only with `reports.junitXml.outputPerTestCase = true`; by default it keeps it at suite level, where the
+import does not look for the line.
+
+### .NET: xUnit with `dotnet test` (JUnit XML)
+
+Add the [`JunitXml.TestLogger`](https://www.nuget.org/packages/JunitXml.TestLogger) package to the test
+project; `dotnet test` then writes a JUnit XML file.
+
+```yaml
+# bash. Under pwsh (the default shell on Windows runners) write $env:RESULTS_DIR in run:, or set shell: bash.
+- run: dotnet test --logger "junit;LogFilePath=$RESULTS_DIR/report.xml"
+  env:
+    RESULTS_DIR: ${{ github.workspace }}/test-results
+- uses: plune-ai/report-action@v1
+  if: ${{ always() }}
+  with:
+    token: ${{ secrets.PLUNE_TOKEN }}
+    report: test-results/report.xml
+```
+
+There is no Windows job for .NET in the smoke workflow: the command above is run on Ubuntu only.
+
+A fixed name such as `report.xml` holds one file: with several test projects, or a project with several
+`TargetFrameworks`, each run of the logger writes it again and one overwrites the other. Put the
+logger's tokens into the path, `LogFilePath=$RESULTS_DIR/{assembly}.xml`, and add `{framework}`
+(`{assembly}.{framework}.xml`) when a project targets several frameworks; the logger replaces them with
+the test assembly's name and the target framework (see its
+[configuration page](https://github.com/spekt/testlogger/wiki/Logger-Configuration)). The import takes
+one file, so give each file its own step of this action, and land them in one run with `key` and
+`shared-run` ([Several jobs, one run](#several-jobs-one-run)). The smoke workflow runs one project with
+the fixed name `report.xml`: these tokens are not run there.
+
+To attach a file, have the test save it in the report's folder (it can read `RESULTS_DIR` from the
+environment) and write `[[ATTACHMENT|cart.png]]` through `ITestOutputHelper.WriteLine`: xUnit v2 does not
+capture `Console.WriteLine`, so a line printed that way never reaches the report.
+
+The smoke workflow (jobs `dotnet`, `gradle` and `maven`, projects in `fixtures/`) runs the same
+`dotnet test --logger …` command and the same Gradle and Maven build setup as above on a GitHub-hosted
+Ubuntu runner, with two differences: Gradle runs as `gradle test`, with no wrapper, and the test step
+has `continue-on-error: true` (so the job stays green while one test fails on purpose) instead of
+`if: always()` on the report step.
 
 ### Playwright (JSON report)
 
