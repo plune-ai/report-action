@@ -102,7 +102,7 @@ test('GitHub Action · report-action · log · npx failing with only npm\'s warn
 });
 
 test('GitHub Action · report-action · log · an import that timed out after opening a run is not summed up as "no run was opened"', () => {
-  // As @plune-ai/cli 0.30.2 prints it (src/cli/commands/run-import.ts, timeoutMessage) before exiting 1.
+  // As @plune-ai/cli 0.32.0 prints it (src/cli/commands/run-import.ts, timeoutMessage) before exiting 1.
   const timedOut = parseOutput(
     'plune: run import did not finish in 600 s (--timeout / PLUNE_IMPORT_TIMEOUT; 0 turns the limit off); the platform may have received part of the results; run r-1 was terminated - import the report again.\n',
   );

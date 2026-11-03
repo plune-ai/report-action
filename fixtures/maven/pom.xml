@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Used by .github/workflows/smoke.yml (job maven): a real `mvn -B test` run whose allure-results folder the action imports.
-     The results folder is set in src/test/resources/allure.properties. -->
+<!-- Used by .github/workflows/smoke.yml: a real `mvn -B test` run whose allure-results folder (job maven) and
+     target/surefire-reports folder (job maven-junit) the action imports.
+     The Allure results folder is set in src/test/resources/allure.properties. -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
