@@ -145,7 +145,9 @@ logger's tokens into the path, `LogFilePath=$RESULTS_DIR/{assembly}.xml`, and ad
 (`{assembly}.{framework}.xml`) when a project targets several frameworks; the logger replaces them with
 the test assembly's name and the target framework (see its
 [configuration page](https://github.com/spekt/testlogger/wiki/Logger-Configuration)). The import takes
-one file, so give each file its own step of this action.
+one file, so give each file its own step of this action, and land them in one run with `key` and
+`shared-run` ([Several jobs, one run](#several-jobs-one-run)). The smoke workflow runs one project with
+the fixed name `report.xml`: these tokens are not run there.
 
 To attach a file, have the test save it in the report's folder (it can read `RESULTS_DIR` from the
 environment) and write `[[ATTACHMENT|cart.png]]` through `ITestOutputHelper.WriteLine`: xUnit v2 does not
