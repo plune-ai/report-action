@@ -11,8 +11,10 @@ name: Self-test
 #
 # The test project must trust the junit source (Settings → Trusted sources). With create: 'true' the first
 # run then turns the fixture's three tests into cases and records their results, and later runs match those
-# cases: Plune answers `known` for a test that already has a case, so none is made twice. Untrusted, the
-# tests only wait in the review queue, nothing is counted, and the uploaded checks below fail.
+# cases: a test that already matches a case is never offered for review at all, so none is made twice
+# (`known` is the answer to a proposal in the review items, not what Plune says for a matched test). The
+# job checks this after its imports: each of the three tests has exactly one case. Untrusted, the tests
+# only wait in the review queue, nothing is counted, and the uploaded checks below fail.
 # NOT covered: Windows and macOS runners, Playwright JSON and Allure reports, shards.
 
 on:
@@ -24,9 +26,11 @@ on:
 permissions:
   contents: read
 
-# One at a time: every run writes into the same test project.
+# One at a time per ref, queued, never cancelled. Runs of different refs may overlap in the test project,
+# which is safe: every run's key carries run_id and run_attempt, and the cleanup deletes only that run's own
+# keys.
 concurrency:
-  group: self-test
+  group: self-test-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -114,6 +118,32 @@ jobs:
           [ "$M_MISSING" -gt 0 ] 2>/dev/null || { echo "::error::missing-attachments: expected more than 0, got '$M_MISSING'"; bad=1; }
           exit "$bad"
 
+      # A repeated import must match the cases the first one made, not make new ones. All three reports
+      # carry the same tests; the CLI titles a JUnit testcase "<classname> › <name>" (titleOf in the CLI's
+      # JUnit importer). q is a substring search over title, description, steps and more, so `matching`
+      # alone proves nothing: the cases whose title is exactly that are counted.
+      - name: "Repeated imports: every test of the fixture has exactly one case"
+        env:
+          PLUNE_TOKEN: ${{ secrets.PLUNE_TOKEN }}
+        run: |
+          bad=0
+          # The header goes in on stdin, so the token is never on a command line.
+          api() { printf 'Authorization: Bearer %s\n' "$PLUNE_TOKEN" | curl -sS -H @- "$@"; }
+          body=$(mktemp)
+          for name in adds_item removes_item total_is_wrong; do
+            title="shop.Cart › $name"
+            code=$(api -o "$body" -w '%{http_code}' -G --data-urlencode "q=$name" --data 'limit=200' "$API_URL/v1/test-cases" || true)
+            if [ "$code" != 200 ]; then echo "::error::Looking up the cases of $name failed (HTTP $code)."; bad=1; continue; fi
+            if ! count=$(jq -e --arg t "$title" '[.testCases[] | select(.title == $t)] | length' "$body"); then
+              echo "::error::The answer to the case lookup of $name has no testCases list."; bad=1; continue
+            fi
+            echo "$name: $count case(s) titled '$title' (q matched $(jq -r '.matching' "$body"); titles found: $(jq -c '[.testCases[].title]' "$body"))"
+            [ "$count" = 1 ] || { echo "::error::$name: expected 1 case titled '$title', found $count."; bad=1; }
+          done
+          exit "$bad"
+
+      # Found by key as well as by the addresses the CLI printed: a run that opened and then failed or timed
+      # out printed no address, and is still deleted. Both keys of this job: the rerun step reuses RUN_KEY.
       - name: Delete the runs from the test project
         if: always()
         env:
@@ -123,12 +153,30 @@ jobs:
             ${{ steps.rerun.outputs.run-url }}
             ${{ steps.missing.outputs.run-url }}
         run: |
-          ids=$(grep -oE '/runs/[0-9a-f-]{36}$' <<< "$URLS" | cut -d/ -f3 | sort -u || true)
-          if [ -z "$ids" ]; then echo "No run was opened, nothing to delete."; exit 0; fi
           bad=0
+          # The header goes in on stdin, so the token is never on a command line.
+          api() { printf 'Authorization: Bearer %s\n' "$PLUNE_TOKEN" | curl -sS -H @- "$@"; }
+          ids=$(grep -oE '/runs/[0-9a-f-]{36}$' <<< "$URLS" | cut -d/ -f3 || true)
+          body=$(mktemp)
+          for key in "$RUN_KEY" "$RUN_KEY-missing"; do
+            code=$(api -o "$body" -w '%{http_code}' -G --data-urlencode "key=$key" "$API_URL/v1/runs" || true)
+            if [ "$code" != 200 ]; then echo "::error::Looking up the runs with key $key failed (HTTP $code): check the test project by hand."; bad=1; continue; fi
+            if ! jq -e '.runs | type == "array"' "$body" > /dev/null 2>&1; then
+              echo "::error::The answer to the lookup of key $key has no runs list: check the test project by hand."; bad=1; continue
+            fi
+            found=$(jq -r '.runs[].id // empty' "$body")
+            echo "Key $key: $(grep -c . <<< "$found" || true) run(s)."
+            for id in $found; do
+              if [[ "$id" =~ ^[0-9a-f-]{36}$ ]]; then ids+=$'\n'"$id"; else echo "::error::Key $key: run id '$id' is not a run id: delete it by hand."; bad=1; fi
+            done
+          done
+          ids=$(grep . <<< "$ids" | sort -u || true)
+          if [ -z "$ids" ]; then
+            [ "$bad" = 0 ] && echo "No run was opened, nothing to delete."
+            exit "$bad"
+          fi
           for id in $ids; do
-            # The header goes in on stdin, so the token is never on a command line.
-            code=$(printf 'Authorization: Bearer %s\n' "$PLUNE_TOKEN" | curl -sS -o /dev/null -w '%{http_code}' -X DELETE -H @- "$API_URL/v1/runs/$id" || true)
+            code=$(api -o /dev/null -w '%{http_code}' -X DELETE "$API_URL/v1/runs/$id" || true)
             if [ "$code" = 204 ]; then echo "Deleted run $id."; else echo "::error::Run $id was not deleted (HTTP $code): delete it by hand in the test project."; bad=1; fi
           done
           exit "$bad"
@@ -148,6 +196,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CHECK_RUN_ID: ${{ needs.beta.outputs.check-run-id }}
         run: |
-          warnings=$(gh api --paginate "repos/$GITHUB_REPOSITORY/check-runs/$CHECK_RUN_ID/annotations" --jq '.[] | select(.annotation_level == "warning") | .message')
+          # The annotations of a just-finished job may not all be readable yet: up to 3 reads, 5 s apart.
+          for attempt in 1 2 3; do
+            warnings=$(gh api --paginate "repos/$GITHUB_REPOSITORY/check-runs/$CHECK_RUN_ID/annotations" --jq '.[] | select(.annotation_level == "warning") | .message') || warnings=''
+            if grep -q 'file(s) the report names were not found and were not uploaded' <<< "$warnings"; then
+              printf '%s\n' "$warnings"
+              echo "Attempt $attempt of 3 found the warning about the missing file."
+              exit 0
+            fi
+            echo "Attempt $attempt of 3: no warning about the missing file yet."
+            [ "$attempt" = 3 ] || sleep 5
+          done
           printf '%s\n' "$warnings"
-          grep -q 'file(s) the report names were not found and were not uploaded' <<< "$warnings" || { echo "::error::No warning about the missing file among the annotations of check run $CHECK_RUN_ID."; exit 1; }
+          echo "::error::No warning about the missing file among the annotations of check run $CHECK_RUN_ID."
+          exit 1
