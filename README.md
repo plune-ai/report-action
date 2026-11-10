@@ -273,7 +273,7 @@ See [`examples/shards-auto-close.yml`](./examples/shards-auto-close.yml).
 | `fail-on-missing-attachments` | `false` | Fail the step when a file the report names is not there. The results are sent either way. |
 | `fail-on-failures` | `false` | Fail the step on the platform's verdict (a failed or broken result that is not muted, or an expected case that never ran). Off: a red test does not fail the import. |
 | `working-directory` | `.` | Directory the `report` path is relative to. |
-| `cli-version` | `0.34.4` | Exact version of `@plune-ai/cli` to run. Pinned; floating tags such as `latest` are refused. |
+| `cli-version` | `0.34.5` | Exact version of `@plune-ai/cli` to run. Pinned; floating tags such as `latest` are refused. |
 
 ## Outputs
 
