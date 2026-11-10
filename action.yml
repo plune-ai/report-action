@@ -64,7 +64,7 @@ inputs:
     # Pinned to a published @plune-ai/cli version; bump in a PR, not by following latest.
     description: 'Exact version of @plune-ai/cli to run, from npm. Pinned for reproducibility.'
     required: false
-    default: '0.34.5'
+    default: '0.34.6'
 
 outputs:
   run-url:
